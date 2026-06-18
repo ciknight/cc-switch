@@ -21,6 +21,8 @@
   "files": [
     "bin/",
     "src/",
-    "profiles/"
+    "profiles/",
+    "README.md",
+    "LICENSE"
   ]
 }
