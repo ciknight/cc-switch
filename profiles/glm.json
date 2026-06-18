@@ -1,0 +1,12 @@
+{
+  "model": "sonnet",
+  "env": {
+    "ANTHROPIC_MODEL": "glm-5.1",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-5.1",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-5.1",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-5.1",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "glm-5.1",
+    "ANTHROPIC_SMALL_FAST_MODEL": "glm-5.1",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "env": {
+    "CLAUDE_CODE_ATTRIBUTION_HEADER": "0"
+  },
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch",
+      "Read",
+      "Bash",
+      "Edit",
+      "Write",
+      "Skill",
+      "PowerShell",
+      "mcp__plugin_context7_context7__*",
+      "mcp__plugin_context7_context7__query-docs",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "Skill(code-review:code-review)",
+      "Skill(code-review:code-review:*)"
+    ],
+    "defaultMode": "b​ypassPermissions"
+  },
+  "enabledPlugins": {
+    "claude-md-management@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "pyright-lsp@claude-plugins-official": true,
+    "qodo-skills@claude-plugins-official": false,
+    "superpowers@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "gopls-lsp@claude-plugins-official": true
+  },
+  "language": "Chinese",
+  "effortLevel": "medium",
+  "autoUpdatesChannel": "latest"
+}
