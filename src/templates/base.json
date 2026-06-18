@@ -19,7 +19,7 @@
       "Skill(code-review:code-review)",
       "Skill(code-review:code-review:*)"
     ],
-    "defaultMode": "b​ypassPermissions"
+    "defaultMode": "bypassPermissions"
   },
   "enabledPlugins": {
     "claude-md-management@claude-plugins-official": true,
