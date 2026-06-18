@@ -6,7 +6,11 @@ const { getCCSwitchDir } = require('../paths');
 
 const BUNDLED_PROFILES_DIR = path.join(__dirname, '..', '..', 'profiles');
 const BUNDLED_BASE = path.join(__dirname, '..', 'templates', 'base.json');
-const BUILT_IN_PROFILES = ['sonnet', 'glm', 'opus'];
+function getBundledProfiles() {
+  return fs.readdirSync(BUNDLED_PROFILES_DIR)
+    .filter(f => f.endsWith('.json'))
+    .map(f => f.slice(0, -5));
+}
 
 function setupConfig(token, baseUrl, targetDir) {
   try {
@@ -23,7 +27,8 @@ function setupConfig(token, baseUrl, targetDir) {
 
     fs.copyFileSync(BUNDLED_BASE, path.join(targetDir, 'base.json'));
 
-    for (const name of BUILT_IN_PROFILES) {
+    const builtInProfiles = getBundledProfiles();
+    for (const name of builtInProfiles) {
       fs.copyFileSync(
         path.join(BUNDLED_PROFILES_DIR, `${name}.json`),
         path.join(targetDir, 'profiles', `${name}.json`)
@@ -32,7 +37,7 @@ function setupConfig(token, baseUrl, targetDir) {
 
     fs.writeFileSync(
       path.join(targetDir, 'profiles.manifest.json'),
-      JSON.stringify(BUILT_IN_PROFILES, null, 2) + '\n',
+      JSON.stringify(builtInProfiles, null, 2) + '\n',
       'utf8'
     );
   } catch (err) {

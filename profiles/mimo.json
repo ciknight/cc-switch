@@ -1,0 +1,11 @@
+{
+  "model": "mimo-v2.5-pro",
+  "env": {
+    "ANTHROPIC_MODEL": "mimo-v2.5-pro",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "mimo-v2.5-pro",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "mimo-v2.5-pro",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "mimo-v2.5-pro",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "mimo-v2.5-pro",
+    "ANTHROPIC_SMALL_FAST_MODEL": "mimo-v2.5-pro"
+  }
+}
