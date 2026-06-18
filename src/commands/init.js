@@ -9,31 +9,36 @@ const BUNDLED_BASE = path.join(__dirname, '..', 'templates', 'base.json');
 const BUILT_IN_PROFILES = ['sonnet', 'glm', 'opus'];
 
 function setupConfig(token, baseUrl, targetDir) {
-  fs.mkdirSync(path.join(targetDir, 'profiles'), { recursive: true });
+  try {
+    fs.mkdirSync(path.join(targetDir, 'profiles'), { recursive: true });
 
-  const privatePath = path.join(targetDir, 'private.json');
-  fs.writeFileSync(privatePath, JSON.stringify({
-    ANTHROPIC_AUTH_TOKEN: token,
-    ANTHROPIC_BASE_URL: baseUrl,
-  }, null, 2) + '\n', 'utf8');
-  if (process.platform !== 'win32') {
-    fs.chmodSync(privatePath, 0o600);
-  }
+    const privatePath = path.join(targetDir, 'private.json');
+    fs.writeFileSync(privatePath, JSON.stringify({
+      ANTHROPIC_AUTH_TOKEN: token,
+      ANTHROPIC_BASE_URL: baseUrl,
+    }, null, 2) + '\n', 'utf8');
+    if (process.platform !== 'win32') {
+      fs.chmodSync(privatePath, 0o600);
+    }
 
-  fs.copyFileSync(BUNDLED_BASE, path.join(targetDir, 'base.json'));
+    fs.copyFileSync(BUNDLED_BASE, path.join(targetDir, 'base.json'));
 
-  for (const name of BUILT_IN_PROFILES) {
-    fs.copyFileSync(
-      path.join(BUNDLED_PROFILES_DIR, `${name}.json`),
-      path.join(targetDir, 'profiles', `${name}.json`)
+    for (const name of BUILT_IN_PROFILES) {
+      fs.copyFileSync(
+        path.join(BUNDLED_PROFILES_DIR, `${name}.json`),
+        path.join(targetDir, 'profiles', `${name}.json`)
+      );
+    }
+
+    fs.writeFileSync(
+      path.join(targetDir, 'profiles.manifest.json'),
+      JSON.stringify(BUILT_IN_PROFILES, null, 2) + '\n',
+      'utf8'
     );
+  } catch (err) {
+    console.error(`Failed to initialize cc-switch: ${err.message}`);
+    process.exit(1);
   }
-
-  fs.writeFileSync(
-    path.join(targetDir, 'profiles.manifest.json'),
-    JSON.stringify(BUILT_IN_PROFILES, null, 2) + '\n',
-    'utf8'
-  );
 }
 
 async function prompt(rl, question) {
@@ -42,17 +47,17 @@ async function prompt(rl, question) {
 
 async function run() {
   const targetDir = getCCSwitchDir();
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
   if (fs.existsSync(path.join(targetDir, 'private.json'))) {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
     const answer = await prompt(rl, 'cc-switch is already initialized. Reinitialize? (y/N): ');
-    rl.close();
     if (answer.toLowerCase() !== 'y') {
+      rl.close();
       console.log('Aborted.');
       return;
     }
   }
 
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const token = await prompt(rl, 'ANTHROPIC_AUTH_TOKEN: ');
   const baseUrl = await prompt(rl, 'ANTHROPIC_BASE_URL (default: https://api.anthropic.com): ');
   rl.close();
