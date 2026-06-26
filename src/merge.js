@@ -18,8 +18,12 @@ function deepMerge(base, override) {
 function buildSettings(base, profile, priv) {
   const merged = deepMerge(base, profile);
   if (!merged.env) merged.env = {};
-  merged.env.ANTHROPIC_AUTH_TOKEN = priv.ANTHROPIC_AUTH_TOKEN;
-  merged.env.ANTHROPIC_BASE_URL = priv.ANTHROPIC_BASE_URL;
+  if (!('ANTHROPIC_AUTH_TOKEN' in merged.env)) {
+    merged.env.ANTHROPIC_AUTH_TOKEN = priv.ANTHROPIC_AUTH_TOKEN;
+  }
+  if (!('ANTHROPIC_BASE_URL' in merged.env)) {
+    merged.env.ANTHROPIC_BASE_URL = priv.ANTHROPIC_BASE_URL;
+  }
   return merged;
 }
 
