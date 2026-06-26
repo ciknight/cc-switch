@@ -44,3 +44,37 @@ test('buildSettings injects private into env even when profile has no env', () =
   expect(result.env.ANTHROPIC_AUTH_TOKEN).toBe('sk-x');
   expect(result.env.ANTHROPIC_BASE_URL).toBe('https://x');
 });
+
+test('buildSettings keeps profile ANTHROPIC_AUTH_TOKEN and ANTHROPIC_BASE_URL when present', () => {
+  const base = { env: { ATTR: '0' } };
+  const profile = {
+    model: 'custom',
+    env: {
+      ANTHROPIC_AUTH_TOKEN: 'profile-token',
+      ANTHROPIC_BASE_URL: 'https://profile.api',
+    },
+  };
+  const priv = {
+    ANTHROPIC_AUTH_TOKEN: 'private-token',
+    ANTHROPIC_BASE_URL: 'https://private.api',
+  };
+  const result = buildSettings(base, profile, priv);
+  expect(result.model).toBe('custom');
+  expect(result.env.ANTHROPIC_AUTH_TOKEN).toBe('profile-token');
+  expect(result.env.ANTHROPIC_BASE_URL).toBe('https://profile.api');
+  expect(result.env.ATTR).toBe('0');
+});
+
+test('buildSettings falls back to private values when profile omits tokens', () => {
+  const base = { env: { ATTR: '0' } };
+  const profile = { model: 'sonnet' };
+  const priv = {
+    ANTHROPIC_AUTH_TOKEN: 'private-token',
+    ANTHROPIC_BASE_URL: 'https://private.api',
+  };
+  const result = buildSettings(base, profile, priv);
+  expect(result.model).toBe('sonnet');
+  expect(result.env.ANTHROPIC_AUTH_TOKEN).toBe('private-token');
+  expect(result.env.ANTHROPIC_BASE_URL).toBe('https://private.api');
+  expect(result.env.ATTR).toBe('0');
+});
