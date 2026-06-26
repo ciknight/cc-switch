@@ -1,11 +1,12 @@
 {
-  "model": "MiniMax-M3",
+  "hasCompletedOnboarding": true,
   "env": {
-    "ANTHROPIC_MODEL": "MiniMax-M3",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL": "MiniMax-M3",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL": "MiniMax-M3",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "MiniMax-M3",
-    "CLAUDE_CODE_SUBAGENT_MODEL": "MiniMax-M3",
-    "ANTHROPIC_SMALL_FAST_MODEL": "MiniMax-M3"
+    "ANTHROPIC_MODEL": "MiniMax-M3[1m]",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "MiniMax-M3[1m]",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "MiniMax-M3[1m]",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "MiniMax-M3[1m]",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "MiniMax-M3[1m]",
+    "ANTHROPIC_SMALL_FAST_MODEL": "MiniMax-M3[1m]",
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "1000000"
   }
 }

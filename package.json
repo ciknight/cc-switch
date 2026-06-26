@@ -7,7 +7,9 @@
   },
   "scripts": {
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "setup": "node scripts/install.js",
+    "teardown": "node scripts/uninstall.js"
   },
   "dependencies": {
     "commander": "^12.0.0"
@@ -22,6 +24,8 @@
     "bin/",
     "src/",
     "profiles/",
+    "scripts/",
+    "Makefile",
     "README.md",
     "LICENSE"
   ]
