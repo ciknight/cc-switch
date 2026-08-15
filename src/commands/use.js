@@ -5,14 +5,16 @@ const { getCCSwitchDir, getClaudeSettingsPath, getLocalClaudeSettingsPath } = re
 const { readJson, writeJson } = require('../config');
 const { buildSettings } = require('../merge');
 
-function applyProfile(profileName, settingsPath, configDir) {
+function applyProfile(profileName, settingsPath, configDir, { recordState = true } = {}) {
   const base = readJson(path.join(configDir, 'base.json'));
   const profile = readJson(path.join(configDir, 'profiles', `${profileName}.json`));
   const priv = readJson(path.join(configDir, 'private.json'));
   const settings = buildSettings(base, profile, priv);
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
   writeJson(settingsPath, settings);
-  writeJson(path.join(configDir, 'state.json'), { activeProfile: profileName });
+  if (recordState) {
+    writeJson(path.join(configDir, 'state.json'), { activeProfile: profileName });
+  }
 }
 
 function run(profileName, options) {
@@ -27,7 +29,7 @@ function run(profileName, options) {
   const settingsPath = options.local
     ? getLocalClaudeSettingsPath(process.cwd())
     : getClaudeSettingsPath();
-  applyProfile(profileName, settingsPath, configDir);
+  applyProfile(profileName, settingsPath, configDir, { recordState: !options.local });
   const label = options.local ? '(local)' : '(global)';
   console.log(`Switched to profile "${profileName}" ${label}`);
   console.log(`Written to: ${settingsPath}`);

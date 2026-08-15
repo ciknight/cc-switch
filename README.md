@@ -6,7 +6,7 @@ Claude Code model profile switcher — switch between model configurations insta
 
 - Switch Claude Code's `settings.json` profile with a single command
 - Built-in profiles: `sonnet`, `opus`, `glm` (GLM-5.x compatible)
-- Global (`~/.claude/settings.json`) and per-project (`--local`) switching
+- Global (`~/.claude/settings.json`) and per-project (`./.claude/settings.local.json`) switching
 - Keeps `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_BASE_URL` private — never in templates
 - Add, edit, and remove custom profiles
 - Works on Windows, macOS, and Linux
@@ -30,7 +30,7 @@ cc-switch use sonnet
 cc-switch use glm
 
 # Switch for the current project only
-cc-switch use opus --local
+cc-switch local opus
 
 # See what's active
 cc-switch status
@@ -45,7 +45,8 @@ cc-switch list
 |---|---|
 | `cc-switch init` | Initialize: store AUTH_TOKEN and BASE_URL, copy preset profiles |
 | `cc-switch use <profile>` | Activate a profile (global by default) |
-| `cc-switch use <profile> --local` | Activate for current project only |
+| `cc-switch use <profile> --local` | Activate for current project only (writes `./.claude/settings.local.json`, not committed to git) |
+| `cc-switch local <profile>` | Shortcut for `use <profile> --local` |
 | `cc-switch list` | List all available profiles |
 | `cc-switch status` | Show active profile and key settings (TOKEN masked) |
 | `cc-switch add <name>` | Create a new custom profile and open it in an editor |
@@ -56,7 +57,7 @@ cc-switch list
 
 ## How It Works
 
-Switching a profile merges three layers into `~/.claude/settings.json`:
+Switching a profile merges three layers into `~/.claude/settings.json` (or `./.claude/settings.local.json` with `local` / `--local`):
 
 ```
 base.json          # permissions, plugins, language settings
@@ -66,6 +67,9 @@ base.json          # permissions, plugins, language settings
 ```
 
 Credentials in `private.json` are always injected last and never appear in any template file.
+
+> **Note:** Before v1.0, `--local` wrote `./.claude/settings.json` (which is usually committed to git).
+> If you used it, delete that file — it contains your token — and remove it from git history if committed.
 
 ## Configuration Directory
 
@@ -82,6 +86,9 @@ After `init`, your config lives at `~/.cc-switch/`:
     ├── opus.json
     └── glm.json
 ```
+
+Built-in profiles are re-synced from the package on every install (`postinstall` hook):
+they are always overwritten with the bundled versions, custom profiles are never touched.
 
 ## Adding a Custom Profile
 

@@ -59,3 +59,10 @@ test('applyProfile updates state.json with active profile name', () => {
   const state = JSON.parse(fs.readFileSync(path.join(tmpDir, 'cc', 'state.json'), 'utf8'));
   expect(state.activeProfile).toBe('glm');
 });
+
+test('applyProfile with recordState:false leaves state.json untouched', () => {
+  const ccDir = path.join(tmpDir, 'cc');
+  applyProfile('glm', path.join(tmpDir, 'settings.local.json'), ccDir, { recordState: false });
+  const state = JSON.parse(fs.readFileSync(path.join(ccDir, 'state.json'), 'utf8'));
+  expect(state).toEqual({});
+});

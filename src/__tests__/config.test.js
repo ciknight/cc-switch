@@ -10,7 +10,7 @@ jest.mock('../paths', () => {
     getCCSwitchDir: () => global.__testCCSwitchDir,
     getProfilesDir: () => path.join(global.__testCCSwitchDir, 'profiles'),
     getClaudeSettingsPath: () => path.join(global.__testCCSwitchDir, '.claude', 'settings.json'),
-    getLocalClaudeSettingsPath: (cwd) => path.join(cwd, '.claude', 'settings.json'),
+    getLocalClaudeSettingsPath: (cwd) => path.join(cwd, '.claude', 'settings.local.json'),
   };
 });
 

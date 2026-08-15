@@ -15,7 +15,7 @@ function getClaudeSettingsPath() {
 }
 
 function getLocalClaudeSettingsPath(cwd) {
-  return path.join(cwd, '.claude', 'settings.json');
+  return path.join(cwd, '.claude', 'settings.local.json');
 }
 
 module.exports = { getCCSwitchDir, getProfilesDir, getClaudeSettingsPath, getLocalClaudeSettingsPath };

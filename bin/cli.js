@@ -16,8 +16,13 @@ program
 program
   .command('use <profile>')
   .description('Activate a profile (writes ~/.claude/settings.json by default)')
-  .option('--local', 'Write to ./.claude/settings.json instead of global')
+  .option('--local', 'Write to ./.claude/settings.local.json (project-only, not committed)')
   .action((profile, options) => require('../src/commands/use').run(profile, options));
+
+program
+  .command('local <profile>')
+  .description('Activate a profile for the current project only (writes ./.claude/settings.local.json)')
+  .action((profile) => require('../src/commands/use').run(profile, { local: true }));
 
 program
   .command('list')

@@ -15,6 +15,6 @@ test('getClaudeSettingsPath returns global claude settings.json', () => {
   expect(getClaudeSettingsPath()).toBe(path.join(os.homedir(), '.claude', 'settings.json'));
 });
 
-test('getLocalClaudeSettingsPath returns .claude/settings.json under given dir', () => {
-  expect(getLocalClaudeSettingsPath('/project')).toBe(path.join('/project', '.claude', 'settings.json'));
+test('getLocalClaudeSettingsPath returns .claude/settings.local.json under given dir', () => {
+  expect(getLocalClaudeSettingsPath('/project')).toBe(path.join('/project', '.claude', 'settings.local.json'));
 });
