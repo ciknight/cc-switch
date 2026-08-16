@@ -48,7 +48,7 @@ cc-switch list
 | `cc-switch use <profile> --local` | Activate for current project only (writes `./.claude/settings.local.json`, not committed to git) |
 | `cc-switch local <profile>` | Shortcut for `use <profile> --local` |
 | `cc-switch list` | List all available profiles |
-| `cc-switch status` | Show active profile and key settings (TOKEN masked) |
+| `cc-switch status` | Show effective settings: reads `./.claude/settings.local.json` first, falls back to `~/.claude/settings.json` (TOKEN masked) |
 | `cc-switch add <name>` | Create a new custom profile and open it in an editor |
 | `cc-switch edit <profile>` | Edit a profile |
 | `cc-switch edit --base` | Edit base config (permissions, plugins, language) |
@@ -67,6 +67,11 @@ base.json          # permissions, plugins, language settings
 ```
 
 Credentials in `private.json` are always injected last and never appear in any template file.
+
+`status` always shows what Claude Code actually reads: it prefers `./.claude/settings.local.json`
+over the global file, and takes `BASE_URL` / `AUTH_TOKEN` from the effective file's `env` — so a
+custom profile overriding those values is reflected correctly. Switched files carry a
+`_ccSwitchProfile` marker so `status` can name the active profile; Claude Code ignores it.
 
 > **Note:** Before v1.0, `--local` wrote `./.claude/settings.json` (which is usually committed to git).
 > If you used it, delete that file — it contains your token — and remove it from git history if committed.

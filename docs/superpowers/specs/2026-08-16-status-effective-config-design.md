@@ -40,7 +40,7 @@ settings._ccSwitchProfile = profileName;
 
 1. `./.claude/settings.local.json` 存在 → 读取，scope = `local`
 2. 否则 `~/.claude/settings.json` 存在 → 读取，scope = `global`
-3. 都不存在 → 输出 `No active settings found. Run 'cc-switch use <profile>' or 'cc-switch local <profile>'.`（退出码 0）
+3. 都不存在 → 输出 `No active settings found. Run `cc-switch use <profile>` or `cc-switch local <profile>` to activate one.`（退出码 0）
 
 视图结构 `{ scope, sourcePath, profileName, model, anthropicModel, baseUrl, authToken }`：
 
@@ -48,7 +48,8 @@ settings._ccSwitchProfile = profileName;
 - `model`：生效文件顶层 `model` 字段
 - `anthropicModel` / `baseUrl` / `authToken`：生效文件 `env.ANTHROPIC_MODEL` / `env.ANTHROPIC_BASE_URL` / `env.ANTHROPIC_AUTH_TOKEN`
 - **status 不再读取 `private.json` 与 profile 文件**（`private.json not found` 报错路径随之移除）
-- 生效文件 JSON 解析失败 → 报错退出（exit 1），提示文件路径损坏
+- 生效文件读取失败 → 报错退出（exit 1），消息前缀 `Failed to read <路径>`
+- 生效文件 JSON 解析失败或顶层不是 JSON 对象 → 报错退出（exit 1），消息前缀 `Failed to parse <路径>`
 
 ### 3. 输出格式
 
@@ -58,7 +59,7 @@ Active profile : glm
 Model (top)    : sonnet
 ANTHROPIC_MODEL: glm-5.1        ← 仅当存在时显示
 BASE_URL       : https://proxy.example.com
-AUTH_TOKEN     : sk-my-***abcd (masked)
+AUTH_TOKEN     : sk-my-***abcd
 ```
 
 - `Source` 行替代原 `Target` 行，路径后带 `(local)` / `(global)` 标注
