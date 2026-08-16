@@ -31,7 +31,7 @@ program
 
 program
   .command('status')
-  .description('Show active profile and key settings (TOKEN masked)')
+  .description('Show effective settings: reads ./.claude/settings.local.json first, then ~/.claude/settings.json (TOKEN masked)')
   .action(() => require('../src/commands/status').run());
 
 program
