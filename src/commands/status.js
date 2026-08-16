@@ -13,11 +13,20 @@ function resolveEffectiveView(localPath, globalPath, state = {}) {
     : fs.existsSync(globalPath) ? globalPath
     : null;
   if (!sourcePath) return null;
+  let raw;
+  try {
+    raw = fs.readFileSync(sourcePath, 'utf8');
+  } catch (err) {
+    throw new Error(`Failed to read ${sourcePath}: ${err.message}`);
+  }
   let settings;
   try {
-    settings = JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
+    settings = JSON.parse(raw);
   } catch (err) {
     throw new Error(`Failed to parse ${sourcePath}: ${err.message}`);
+  }
+  if (!settings || typeof settings !== 'object') {
+    throw new Error(`Failed to parse ${sourcePath}: not a JSON object`);
   }
   const scope = sourcePath === localPath ? 'local' : 'global';
   const env = settings.env || {};

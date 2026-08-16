@@ -92,6 +92,11 @@ test('resolveEffectiveView throws on corrupt JSON', () => {
   expect(() => resolveEffectiveView(localPath, globalPath, {})).toThrow(/Failed to parse/);
 });
 
+test('resolveEffectiveView throws on non-object JSON', () => {
+  writeSettings(localPath, null);
+  expect(() => resolveEffectiveView(localPath, globalPath, {})).toThrow(/not a JSON object/);
+});
+
 test('formatStatus renders view lines with masked token', () => {
   const view = {
     scope: 'local',
