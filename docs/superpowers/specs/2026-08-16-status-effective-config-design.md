@@ -40,7 +40,7 @@ settings._ccSwitchProfile = profileName;
 
 1. `./.claude/settings.local.json` 存在 → 读取，scope = `local`
 2. 否则 `~/.claude/settings.json` 存在 → 读取，scope = `global`
-3. 都不存在 → 输出 `No active settings found. Run `cc-switch use <profile>` or `cc-switch local <profile>` to activate one.`（退出码 0）
+3. 都不存在 → 输出 ``No active settings found. Run `cc-switch use <profile>` or `cc-switch local <profile>` to activate one.``（退出码 0）
 
 视图结构 `{ scope, sourcePath, profileName, model, anthropicModel, baseUrl, authToken }`：
 
