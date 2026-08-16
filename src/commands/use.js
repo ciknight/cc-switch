@@ -10,6 +10,7 @@ function applyProfile(profileName, settingsPath, configDir, { recordState = true
   const profile = readJson(path.join(configDir, 'profiles', `${profileName}.json`));
   const priv = readJson(path.join(configDir, 'private.json'));
   const settings = buildSettings(base, profile, priv);
+  settings._ccSwitchProfile = profileName;
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
   writeJson(settingsPath, settings);
   if (recordState) {

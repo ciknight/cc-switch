@@ -66,3 +66,17 @@ test('applyProfile with recordState:false leaves state.json untouched', () => {
   const state = JSON.parse(fs.readFileSync(path.join(ccDir, 'state.json'), 'utf8'));
   expect(state).toEqual({});
 });
+
+test('applyProfile records profile name in settings metadata', () => {
+  const settingsPath = path.join(tmpDir, 'settings.json');
+  applyProfile('glm', settingsPath, path.join(tmpDir, 'cc'));
+  const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+  expect(settings._ccSwitchProfile).toBe('glm');
+});
+
+test('applyProfile records profile name for local targets too', () => {
+  const settingsPath = path.join(tmpDir, 'settings.local.json');
+  applyProfile('glm', settingsPath, path.join(tmpDir, 'cc'), { recordState: false });
+  const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+  expect(settings._ccSwitchProfile).toBe('glm');
+});
