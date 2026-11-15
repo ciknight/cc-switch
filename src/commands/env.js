@@ -8,13 +8,21 @@ const { readJson } = require('../config');
 const { buildSettings } = require('../merge');
 const { getCCSwitchDir } = require('../paths');
 
-function buildEnvSettings(configDir, profileName) {
+function assertInitFiles(configDir) {
   for (const file of ['base.json', 'private.json']) {
     if (!fs.existsSync(path.join(configDir, file))) {
       throw new Error(`${file} not found. Run \`cc-switch init\` first.`);
     }
   }
-  const profilePath = path.join(configDir, 'profiles', `${profileName}.json`);
+}
+
+function profilePathOf(configDir, profileName) {
+  return path.join(configDir, 'profiles', `${profileName}.json`);
+}
+
+function buildEnvSettings(configDir, profileName) {
+  assertInitFiles(configDir);
+  const profilePath = profilePathOf(configDir, profileName);
   if (!fs.existsSync(profilePath)) {
     throw new Error(`profile "${profileName}" not found`);
   }
@@ -65,50 +73,60 @@ function listProfileNames(configDir) {
 async function launch(profileName, userArgs, opts = {}) {
   const configDir = opts.configDir || getCCSwitchDir();
   const spawnFn = opts.spawnFn || spawn;
-  if (!fs.existsSync(path.join(configDir, 'profiles', `${profileName}.json`))) {
-    return Promise.reject(new Error(
-      `profile "${profileName}" not found. Available profiles: ${listProfileNames(configDir).join(', ') || '(none)'}`));
+  const resolveBin = opts.resolveBin || resolveClaudeBin;
+  assertInitFiles(configDir);
+  if (!fs.existsSync(profilePathOf(configDir, profileName))) {
+    throw new Error(
+      `profile "${profileName}" not found. Available profiles: ${listProfileNames(configDir).join(', ') || '(none)'}`);
   }
   const settings = buildEnvSettings(configDir, profileName);
+  // Resolve the binary and build the invocation BEFORE writing the token-bearing
+  // temp file: if resolution fails there is nothing to leak.
+  const claudeBin = opts.claudeBin || resolveBin();
   const settingsFile = path.join(os.tmpdir(), `cc-switch-env-${process.pid}-${crypto.randomUUID().slice(0, 8)}.json`);
-  fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2) + '\n', 'utf8');
-  if (process.platform !== 'win32') fs.chmodSync(settingsFile, 0o600);
   const cleanup = () => { try { fs.unlinkSync(settingsFile); } catch (_) { /* already gone */ } };
-  const modelSuffix = settings.model ? `, model: ${settings.model}` : '';
-  console.error(`[cc-switch] session profile "${profileName}"${modelSuffix}`);
-  const claudeBin = opts.claudeBin || resolveClaudeBin();
-  const { command, args } = buildSpawnInvocation(claudeBin, settingsFile, userArgs);
-  return new Promise((resolve, reject) => {
-    const onSignal = () => { /* let the child handle the signal; cleanup runs on close */ };
-    process.on('SIGINT', onSignal);
-    process.on('SIGTERM', onSignal);
-    process.on('exit', cleanup);
-    const detach = () => {
-      process.off('SIGINT', onSignal);
-      process.off('SIGTERM', onSignal);
-      process.off('exit', cleanup);
-    };
-    const child = spawnFn(command, args, { stdio: 'inherit' });
-    child.on('close', (code) => { detach(); cleanup(); resolve(code); });
-    child.on('error', (err) => {
-      detach(); cleanup();
-      if (err && err.code === 'ENOENT') {
-        reject(new Error(`claude not found at "${command}". Check PATH or set CC_SWITCH_CLAUDE.`));
-      } else {
-        reject(err instanceof Error ? err : new Error(String(err)));
-      }
+  try {
+    fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2) + '\n', 'utf8');
+    if (process.platform !== 'win32') fs.chmodSync(settingsFile, 0o600);
+    const modelSuffix = settings.model ? `, model: ${settings.model}` : '';
+    console.error(`[cc-switch] session profile "${profileName}"${modelSuffix}`);
+    const { command, args } = buildSpawnInvocation(claudeBin, settingsFile, userArgs);
+    return await new Promise((resolve, reject) => {
+      const onSignal = () => { /* let the child handle the signal; cleanup runs on close */ };
+      process.on('SIGINT', onSignal);
+      process.on('SIGTERM', onSignal);
+      process.on('exit', cleanup);
+      const detach = () => {
+        process.off('SIGINT', onSignal);
+        process.off('SIGTERM', onSignal);
+        process.off('exit', cleanup);
+      };
+      const child = spawnFn(command, args, { stdio: 'inherit' });
+      child.on('close', (code) => { detach(); cleanup(); resolve(code); });
+      child.on('error', (err) => {
+        detach(); cleanup();
+        if (err && err.code === 'ENOENT') {
+          reject(new Error(`claude not found at "${command}". Check PATH or set CC_SWITCH_CLAUDE.`));
+        } else {
+          reject(err instanceof Error ? err : new Error(String(err)));
+        }
+      });
     });
-  });
+  } catch (err) {
+    cleanup();
+    throw err;
+  }
 }
 
 function run(profileName, userArgs, options = {}) {
   const configDir = options.configDir || getCCSwitchDir();
   if (options.print) {
-    if (!fs.existsSync(path.join(configDir, 'profiles', `${profileName}.json`))) {
-      console.error(`Error: profile "${profileName}" not found. Available profiles: ${listProfileNames(configDir).join(', ') || '(none)'}`);
-      process.exit(1);
-    }
     try {
+      assertInitFiles(configDir);
+      if (!fs.existsSync(profilePathOf(configDir, profileName))) {
+        throw new Error(
+          `profile "${profileName}" not found. Available profiles: ${listProfileNames(configDir).join(', ') || '(none)'}`);
+      }
       console.log(JSON.stringify(buildEnvSettings(configDir, profileName), null, 2));
       return Promise.resolve();
     } catch (err) {

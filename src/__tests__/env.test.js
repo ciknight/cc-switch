@@ -149,6 +149,10 @@ describe('launch', () => {
     return { spawnFn, calls, children };
   }
 
+  function ccSwitchEnvFiles() {
+    return fs.readdirSync(os.tmpdir()).filter(f => f.startsWith('cc-switch-env-'));
+  }
+
   function settingsFileFrom(spawnCall) {
     if (spawnCall.args[0] === '/d') {
       // win32: ['/d','/s','/c', 'claude.cmd --settings "C:\\...\\s.json" -c']
@@ -208,13 +212,52 @@ describe('launch', () => {
 
   test('throws listing profiles for missing profile', async () => {
     const { launch } = require('../commands/env');
+    const before = ccSwitchEnvFiles();
     await expect(launch('nope', [], { configDir: ccDir, claudeBin: 'claude', spawnFn: () => {} })).rejects.toThrow('glm');
+    expect(ccSwitchEnvFiles()).toEqual(before); // no temp file written for missing profile
+  });
+
+  test('cleans up and prints no session line when claude resolution fails', async () => {
+    const { launch } = require('../commands/env');
+    const before = ccSwitchEnvFiles();
+    const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await expect(launch('glm', [], {
+        configDir: ccDir,
+        resolveBin: () => { throw new Error('claude not found in PATH'); },
+        spawnFn: () => { throw new Error('spawn should not run'); },
+      })).rejects.toThrow('claude not found');
+      const printed = errSpy.mock.calls.map(c => c.join(' ')).join('\n');
+      expect(printed).not.toContain('session profile');
+    } finally {
+      errSpy.mockRestore();
+    }
+    expect(ccSwitchEnvFiles()).toEqual(before); // no token file leaked
   });
 
   test('throws init hint when base.json missing', async () => {
     const { launch } = require('../commands/env');
     fs.rmSync(path.join(ccDir, 'base.json'));
     await expect(launch('glm', [], { configDir: ccDir, claudeBin: 'claude', spawnFn: () => {} })).rejects.toThrow('cc-switch init');
+  });
+
+  test('shows init hint on completely uninitialized config dir', async () => {
+    const { launch, run } = require('../commands/env');
+    const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-switch-env-empty-'));
+    try {
+      await expect(launch('glm', [], { configDir: emptyDir, claudeBin: 'claude', spawnFn: () => {} })).rejects.toThrow('cc-switch init');
+      const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => {});
+      try {
+        await run('glm', [], { print: true, configDir: emptyDir });
+        expect(errSpy.mock.calls[0][0]).toContain('cc-switch init');
+      } finally {
+        errSpy.mockRestore();
+        exitSpy.mockRestore();
+      }
+    } finally {
+      fs.rmSync(emptyDir, { recursive: true });
+    }
   });
 
   test('prints session line without token', async () => {
@@ -236,11 +279,13 @@ describe('launch', () => {
   test('run --print outputs settings JSON without launching', async () => {
     const { run } = require('../commands/env');
     const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const spawnFn = jest.fn();
     try {
-      await run('glm', [], { print: true, configDir: ccDir });
+      await run('glm', [], { print: true, configDir: ccDir, spawnFn });
       const printed = logSpy.mock.calls.map(c => c.join(' ')).join('\n');
       expect(printed).toContain('ANTHROPIC_MODEL');
       expect(printed).toContain('"model"');
+      expect(spawnFn).not.toHaveBeenCalled();
     } finally {
       logSpy.mockRestore();
     }
