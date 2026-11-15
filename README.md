@@ -32,6 +32,10 @@ cc-switch use glm
 # Switch for the current project only
 cc-switch local opus
 
+# One-off session with a profile (no files modified)
+cc-switch env glm
+cc-switch env glm -- -c
+
 # See what's active
 cc-switch status
 
@@ -47,6 +51,8 @@ cc-switch list
 | `cc-switch use <profile>` | Activate a profile (global by default) |
 | `cc-switch use <profile> --local` | Activate for current project only (writes `./.claude/settings.local.json`, not committed to git) |
 | `cc-switch local <profile>` | Shortcut for `use <profile> --local` |
+| `cc-switch env <profile> [args...]` | Start a one-off Claude Code session with this profile — no settings files modified; args after the profile pass through to `claude` |
+| `cc-switch env --print <profile>` | Print the settings JSON that `env` would inject (debugging) |
 | `cc-switch list` | List all available profiles |
 | `cc-switch status` | Show effective settings: reads `./.claude/settings.local.json` first, falls back to `~/.claude/settings.json` (TOKEN masked) |
 | `cc-switch add <name>` | Create a new custom profile and open it in an editor |
@@ -75,6 +81,34 @@ custom profile overriding those values is reflected correctly. Switched files ca
 
 > **Note:** Before v1.0, `--local` wrote `./.claude/settings.json` (which is usually committed to git).
 > If you used it, delete that file — it contains your token — and remove it from git history if committed.
+
+## Session-Level Switching
+
+`use` and `local` persist a profile by rewriting a `settings.json`. `env` is the session-level
+alternative: it merges the same three layers, keeps only `env` and `model`, writes them to a
+temporary file, and starts Claude Code with `claude --settings <temp-file>` — the official
+one-session override, applied above your user/project settings without touching them.
+
+```bash
+# Terminal A
+cc-switch env glm            # interactive session on glm
+
+# Terminal B — same machine, same moment, different profile
+cc-switch env gpt -- -c
+```
+
+- Nothing is written to any `settings.json`; `state.json` is not updated, so `status` keeps
+  reporting the persisted profile.
+- The temp file (which contains your token) is deleted when Claude Code exits; on Unix it is
+  `chmod 600` while it exists.
+- "Unset" is simply running `claude` without the prefix — a fresh terminal is back on the
+  global settings.
+- Exit code of `claude` is passed through.
+- If `claude` is not on PATH, set `CC_SWITCH_CLAUDE` to its full path.
+
+Why not `export ANTHROPIC_BASE_URL=...`? A settings-file `env` block overrides same-named
+shell variables in regular sessions, so plain exports lose to whatever `use` wrote earlier.
+`--settings` is the layer that reliably wins for one session.
 
 ## Configuration Directory
 

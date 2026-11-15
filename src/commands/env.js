@@ -82,9 +82,11 @@ async function launch(profileName, userArgs, opts = {}) {
     const onSignal = () => { /* let the child handle the signal; cleanup runs on close */ };
     process.on('SIGINT', onSignal);
     process.on('SIGTERM', onSignal);
+    process.on('exit', cleanup);
     const detach = () => {
       process.off('SIGINT', onSignal);
       process.off('SIGTERM', onSignal);
+      process.off('exit', cleanup);
     };
     const child = spawnFn(command, args, { stdio: 'inherit' });
     child.on('close', (code) => { detach(); cleanup(); resolve(code); });
@@ -102,10 +104,25 @@ async function launch(profileName, userArgs, opts = {}) {
 function run(profileName, userArgs, options = {}) {
   const configDir = options.configDir || getCCSwitchDir();
   if (options.print) {
-    console.log(JSON.stringify(buildEnvSettings(configDir, profileName), null, 2));
-    return Promise.resolve();
+    if (!fs.existsSync(path.join(configDir, 'profiles', `${profileName}.json`))) {
+      console.error(`Error: profile "${profileName}" not found. Available profiles: ${listProfileNames(configDir).join(', ') || '(none)'}`);
+      process.exit(1);
+    }
+    try {
+      console.log(JSON.stringify(buildEnvSettings(configDir, profileName), null, 2));
+      return Promise.resolve();
+    } catch (err) {
+      console.error(`Error: ${err.message}`);
+      process.exit(1);
+    }
   }
-  return launch(profileName, userArgs, { configDir })
+  // commander keeps a leading '--' in variadic args; strip it so claude never sees it
+  const passthrough = userArgs[0] === '--' ? userArgs.slice(1) : userArgs;
+  return launch(profileName, passthrough, {
+    configDir,
+    claudeBin: options.claudeBin,
+    spawnFn: options.spawnFn,
+  })
     .then((code) => process.exit(code))
     .catch((err) => {
       console.error(`Error: ${err.message}`);

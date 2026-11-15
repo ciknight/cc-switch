@@ -245,4 +245,45 @@ describe('launch', () => {
       logSpy.mockRestore();
     }
   });
+
+  test('run --print reports error for missing profile without throwing', async () => {
+    const { run } = require('../commands/env');
+    const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => {});
+    try {
+      await run('nope', [], { print: true, configDir: ccDir });
+      expect(errSpy.mock.calls[0][0]).toContain('not found');
+      expect(errSpy.mock.calls[0][0]).toContain('glm'); // spec: list available profiles
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    } finally {
+      errSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
+  test('cleans up temp file on process exit hook', async () => {
+    const { launch } = require('../commands/env');
+    const fake = makeFakeSpawn();
+    const p = launch('glm', [], { configDir: ccDir, claudeBin: 'claude', spawnFn: fake.spawnFn });
+    const settingsFile = settingsFileFrom(fake.calls[0]);
+    expect(fs.existsSync(settingsFile)).toBe(true);
+    process.emit('exit');
+    expect(fs.existsSync(settingsFile)).toBe(false);
+    fake.children[0].emit('close', 0);
+    await p; // exit-hook cleanup is idempotent; launch still resolves
+  });
+
+  test('run strips leading -- from passthrough args', async () => {
+    const { run } = require('../commands/env');
+    const fake = makeFakeSpawn();
+    const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => {});
+    try {
+      const p = run('glm', ['--', '--version'], { configDir: ccDir, claudeBin: 'claude', spawnFn: fake.spawnFn });
+      fake.children[0].emit('close', 0);
+      await p;
+      expect(fake.calls[0].args).not.toContain('--');
+    } finally {
+      exitSpy.mockRestore();
+    }
+  });
 });

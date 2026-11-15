@@ -6,7 +6,8 @@ const program = new Command();
 program
   .name('cc-switch')
   .description('Claude Code model profile switcher')
-  .version('1.0.0');
+  .version('1.0.0')
+  .enablePositionalOptions();
 
 program
   .command('init')
@@ -23,6 +24,14 @@ program
   .command('local <profile>')
   .description('Activate a profile for the current project only (writes ./.claude/settings.local.json)')
   .action((profile) => require('../src/commands/use').run(profile, { local: true }));
+
+program
+  .command('env <profile> [args...]')
+  .description('Start a one-off Claude Code session with this profile (no settings files modified; args after the profile pass through to claude)')
+  .allowUnknownOption()
+  .passThroughOptions()
+  .option('--print', 'Print the injected settings JSON instead of launching (place before <profile>)')
+  .action((profile, args, options) => require('../src/commands/env').run(profile, args || [], options));
 
 program
   .command('list')
