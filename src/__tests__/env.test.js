@@ -2,6 +2,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { EventEmitter } = require('events');
 
 let tmpDir;
 let ccDir;
@@ -132,5 +133,116 @@ describe('buildSpawnInvocation', () => {
     expect(inv.args[2]).toBe('/c');
     expect(inv.args[3]).toBe('C:\\npm\\claude.cmd --settings "C:\\tmp dir\\s.json" -p "hello world"');
     expect(inv.command).toMatch(/cmd\.exe$/i);
+  });
+});
+
+describe('launch', () => {
+  function makeFakeSpawn() {
+    const calls = [];
+    const children = [];
+    const spawnFn = (command, args, opts) => {
+      calls.push({ command, args, opts });
+      const child = new EventEmitter();
+      children.push(child);
+      return child;
+    };
+    return { spawnFn, calls, children };
+  }
+
+  function settingsFileFrom(spawnCall) {
+    if (spawnCall.args[0] === '/d') {
+      // win32: ['/d','/s','/c', 'claude.cmd --settings "C:\\...\\s.json" -c']
+      const m = spawnCall.args[3].match(/--settings (?:"([^"]+)"|(\S+))/);
+      expect(m).not.toBeNull();
+      return m[1] || m[2];
+    }
+    const idx = spawnCall.args.indexOf('--settings');
+    expect(idx).toBeGreaterThanOrEqual(0);
+    return spawnCall.args[idx + 1];
+  }
+
+  test('spawns claude with --settings temp file and cleans up', async () => {
+    const { launch } = require('../commands/env');
+    const fake = makeFakeSpawn();
+    const p = launch('glm', ['-c'], { configDir: ccDir, claudeBin: 'claude', spawnFn: fake.spawnFn });
+    const settingsFile = settingsFileFrom(fake.calls[0]);
+    expect(settingsFile).toMatch(/cc-switch-env-/);
+    expect(fs.existsSync(settingsFile)).toBe(true);
+    expect(fake.calls[0].opts.stdio).toBe('inherit');
+    fake.children[0].emit('close', 0);
+    await expect(p).resolves.toBe(0);
+    expect(fs.existsSync(settingsFile)).toBe(false);
+  });
+
+  test('writes only env+model into temp file', async () => {
+    const { launch } = require('../commands/env');
+    const fake = makeFakeSpawn();
+    const p = launch('glm', [], { configDir: ccDir, claudeBin: 'claude', spawnFn: fake.spawnFn });
+    const settingsFile = settingsFileFrom(fake.calls[0]);
+    const content = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
+    expect(Object.keys(content).sort()).toEqual(['env', 'model']);
+    expect(content.env.ANTHROPIC_AUTH_TOKEN).toBe('sk-test');
+    fake.children[0].emit('close', 0);
+    await p;
+  });
+
+  test('passes nonzero exit code through', async () => {
+    const { launch } = require('../commands/env');
+    const fake = makeFakeSpawn();
+    const p = launch('glm', [], { configDir: ccDir, claudeBin: 'claude', spawnFn: fake.spawnFn });
+    const settingsFile = settingsFileFrom(fake.calls[0]);
+    fake.children[0].emit('close', 2);
+    await expect(p).resolves.toBe(2);
+    expect(fs.existsSync(settingsFile)).toBe(false);
+  });
+
+  test('rejects and cleans up on spawn error', async () => {
+    const { launch } = require('../commands/env');
+    const fake = makeFakeSpawn();
+    const p = launch('glm', [], { configDir: ccDir, claudeBin: 'claude', spawnFn: fake.spawnFn });
+    const settingsFile = settingsFileFrom(fake.calls[0]);
+    fake.children[0].emit('error', Object.assign(new Error('spawn claude ENOENT'), { code: 'ENOENT' }));
+    await expect(p).rejects.toThrow('CC_SWITCH_CLAUDE');
+    expect(fs.existsSync(settingsFile)).toBe(false);
+  });
+
+  test('throws listing profiles for missing profile', async () => {
+    const { launch } = require('../commands/env');
+    await expect(launch('nope', [], { configDir: ccDir, claudeBin: 'claude', spawnFn: () => {} })).rejects.toThrow('glm');
+  });
+
+  test('throws init hint when base.json missing', async () => {
+    const { launch } = require('../commands/env');
+    fs.rmSync(path.join(ccDir, 'base.json'));
+    await expect(launch('glm', [], { configDir: ccDir, claudeBin: 'claude', spawnFn: () => {} })).rejects.toThrow('cc-switch init');
+  });
+
+  test('prints session line without token', async () => {
+    const { launch } = require('../commands/env');
+    const fake = makeFakeSpawn();
+    const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const p = launch('glm', [], { configDir: ccDir, claudeBin: 'claude', spawnFn: fake.spawnFn });
+      fake.children[0].emit('close', 0);
+      await p;
+      const printed = errSpy.mock.calls.map(c => c.join(' ')).join('\n');
+      expect(printed).toContain('glm');
+      expect(printed).not.toContain('sk-test');
+    } finally {
+      errSpy.mockRestore();
+    }
+  });
+
+  test('run --print outputs settings JSON without launching', async () => {
+    const { run } = require('../commands/env');
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await run('glm', [], { print: true, configDir: ccDir });
+      const printed = logSpy.mock.calls.map(c => c.join(' ')).join('\n');
+      expect(printed).toContain('ANTHROPIC_MODEL');
+      expect(printed).toContain('"model"');
+    } finally {
+      logSpy.mockRestore();
+    }
   });
 });
