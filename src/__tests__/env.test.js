@@ -67,3 +67,70 @@ test('buildEnvSettings throws init hint when private.json missing', () => {
   fs.rmSync(path.join(ccDir, 'private.json'));
   expect(() => buildEnvSettings(ccDir, 'glm')).toThrow('cc-switch init');
 });
+
+describe('resolveClaudeBin', () => {
+  test('prefers CC_SWITCH_CLAUDE', () => {
+    const { resolveClaudeBin } = require('../commands/env');
+    expect(resolveClaudeBin({ env: { CC_SWITCH_CLAUDE: 'C:/tools/claude.exe' }, platform: 'win32', spawnSyncFn: () => ({ status: 1 }) })).toBe('C:/tools/claude.exe');
+  });
+
+  test('returns claude on non-win32', () => {
+    const { resolveClaudeBin } = require('../commands/env');
+    expect(resolveClaudeBin({ env: {}, platform: 'linux', spawnSyncFn: () => ({ status: 1 }) })).toBe('claude');
+  });
+
+  test('resolves via where.exe on win32', () => {
+    const { resolveClaudeBin } = require('../commands/env');
+    const spawnSyncFn = jest.fn(() => ({ status: 0, stdout: 'C:\\npm\\claude.cmd\r\nC:\\npm\\claude.ps1\r\n' }));
+    expect(resolveClaudeBin({ env: {}, platform: 'win32', spawnSyncFn })).toBe('C:\\npm\\claude.cmd');
+    expect(spawnSyncFn).toHaveBeenCalledWith('where.exe', ['claude']);
+  });
+
+  test('throws with CC_SWITCH_CLAUDE hint when claude missing on win32', () => {
+    const { resolveClaudeBin } = require('../commands/env');
+    expect(() => resolveClaudeBin({ env: {}, platform: 'win32', spawnSyncFn: () => ({ status: 1 }) })).toThrow('CC_SWITCH_CLAUDE');
+  });
+});
+
+describe('quoteCmdArg', () => {
+  test('passes plain args through', () => {
+    const { quoteCmdArg } = require('../commands/env');
+    expect(quoteCmdArg('abc')).toBe('abc');
+    expect(quoteCmdArg('--settings')).toBe('--settings');
+    expect(quoteCmdArg('C:\\Users\\me\\.claude')).toBe('C:\\Users\\me\\.claude');
+  });
+
+  test('quotes args with spaces', () => {
+    const { quoteCmdArg } = require('../commands/env');
+    expect(quoteCmdArg('hello world')).toBe('"hello world"');
+  });
+
+  test('escapes embedded quotes', () => {
+    const { quoteCmdArg } = require('../commands/env');
+    expect(quoteCmdArg('say "hi"')).toBe('"say \\"hi\\""');
+  });
+
+  test('doubles trailing backslash inside quotes', () => {
+    const { quoteCmdArg } = require('../commands/env');
+    expect(quoteCmdArg('hello C:\\dir\\')).toBe('"hello C:\\dir\\\\"');
+  });
+});
+
+describe('buildSpawnInvocation', () => {
+  test('direct spawn on non-win32', () => {
+    const { buildSpawnInvocation } = require('../commands/env');
+    const inv = buildSpawnInvocation('claude', '/tmp/s.json', ['-c'], 'linux');
+    expect(inv.command).toBe('claude');
+    expect(inv.args).toEqual(['--settings', '/tmp/s.json', '-c']);
+  });
+
+  test('wraps via cmd.exe on win32 with quoted join', () => {
+    const { buildSpawnInvocation } = require('../commands/env');
+    const inv = buildSpawnInvocation('C:\\npm\\claude.cmd', 'C:\\tmp dir\\s.json', ['-p', 'hello world'], 'win32');
+    expect(inv.args[0]).toBe('/d');
+    expect(inv.args[1]).toBe('/s');
+    expect(inv.args[2]).toBe('/c');
+    expect(inv.args[3]).toBe('C:\\npm\\claude.cmd --settings "C:\\tmp dir\\s.json" -p "hello world"');
+    expect(inv.command).toMatch(/cmd\.exe$/i);
+  });
+});
