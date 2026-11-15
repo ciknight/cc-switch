@@ -1,15 +1,35 @@
 # cc-switch
 
-Claude Code model profile switcher — switch between model configurations instantly via CLI.
+[![CI](https://github.com/ciknight/cc-switch/actions/workflows/ci.yml/badge.svg)](https://github.com/ciknight/cc-switch/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D18-green.svg)](package.json)
+
+**Claude Code model profile switcher** — one command to switch Claude Code between API endpoints, models, and credentials; scope a profile to a project; or launch a one-off session without touching any settings file.
+
+[简体中文](README.zh-CN.md) | English
+
+## Why
+
+Running Claude Code against different providers (Anthropic official, GLM-compatible gateways, other proxies) means juggling `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` and a handful of model-override env vars. Doing that by hand means editing `settings.json` — slow, error-prone, and your token ends up living in files you might commit.
+
+cc-switch splits that configuration into three layers and merges them for you:
+
+```
+base.json          # permissions, plugins, language — shared by every profile
+  + profile.json   # model-specific env vars
+  + private.json   # ANTHROPIC_AUTH_TOKEN + ANTHROPIC_BASE_URL (chmod 600, injected last)
+= settings.json
+```
+
+Credentials never appear in templates, and every switch is a single command.
 
 ## Features
 
-- Switch Claude Code's `settings.json` profile with a single command
-- Built-in profiles: `sonnet`, `opus`, `glm` (GLM-5.x compatible)
-- Global (`~/.claude/settings.json`) and per-project (`./.claude/settings.local.json`) switching
-- Keeps `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_BASE_URL` private — never in templates
+- Switch Claude Code's `settings.json` profile with a single command (`use`, project-scoped `local`)
+- **Session-level switching** (`env`): start a one-off Claude Code session with any profile — no settings files modified, each terminal can run a different provider simultaneously
 - Add, edit, and remove custom profiles
-- Works on Windows, macOS, and Linux
+- Keeps `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_BASE_URL` private — never in templates
+- Works on Windows, macOS, and Linux (CI-tested on all three)
 
 ## Installation
 
@@ -17,7 +37,13 @@ Claude Code model profile switcher — switch between model configurations insta
 npm install -g cc-switch
 ```
 
-Requires Node.js >= 18.
+Requires Node.js >= 18. Then initialize once:
+
+```bash
+cc-switch init
+```
+
+`init` prompts for your `AUTH_TOKEN` and `BASE_URL`, stores them in `~/.cc-switch/private.json` (chmod 600 on Unix), and copies the bundled profiles.
 
 ## Quick Start
 
@@ -25,7 +51,7 @@ Requires Node.js >= 18.
 # First-time setup: store your API credentials
 cc-switch init
 
-# Switch to a profile
+# Switch to a profile (persists to ~/.claude/settings.json)
 cc-switch use sonnet
 cc-switch use glm
 
@@ -54,7 +80,7 @@ cc-switch list
 | `cc-switch env <profile> [args...]` | Start a one-off Claude Code session with this profile — no settings files modified; args after the profile pass through to `claude` |
 | `cc-switch env --print <profile>` | Print the settings JSON that `env` would inject (debugging) |
 | `cc-switch list` | List all available profiles |
-| `cc-switch status` | Show effective settings: reads `./.claude/settings.local.json` first, falls back to `~/.claude/settings.json` (TOKEN masked) |
+| `cc-switch status` | Show effective settings: reads `./.claude/settings.local.json` first, then `~/.claude/settings.json` (TOKEN masked) |
 | `cc-switch add <name>` | Create a new custom profile and open it in an editor |
 | `cc-switch edit <profile>` | Edit a profile |
 | `cc-switch edit --base` | Edit base config (permissions, plugins, language) |
@@ -78,9 +104,6 @@ Credentials in `private.json` are always injected last and never appear in any t
 over the global file, and takes `BASE_URL` / `AUTH_TOKEN` from the effective file's `env` — so a
 custom profile overriding those values is reflected correctly. Switched files carry a
 `_ccSwitchProfile` marker so `status` can name the active profile; Claude Code ignores it.
-
-> **Note:** Before v1.0, `--local` wrote `./.claude/settings.json` (which is usually committed to git).
-> If you used it, delete that file — it contains your token — and remove it from git history if committed.
 
 ## Session-Level Switching
 
@@ -110,6 +133,9 @@ Why not `export ANTHROPIC_BASE_URL=...`? A settings-file `env` block overrides s
 shell variables in regular sessions, so plain exports lose to whatever `use` wrote earlier.
 `--settings` is the layer that reliably wins for one session.
 
+> **Note:** Before v1.0, `--local` wrote `./.claude/settings.json` (which is usually committed to git).
+> If you used it, delete that file — it contains your token — and remove it from git history if committed.
+
 ## Configuration Directory
 
 After `init`, your config lives at `~/.cc-switch/`:
@@ -121,9 +147,8 @@ After `init`, your config lives at `~/.cc-switch/`:
 ├── state.json                # active profile name
 ├── profiles.manifest.json    # built-in profile list
 └── profiles/
-    ├── sonnet.json
-    ├── opus.json
-    └── glm.json
+    ├── glm.json
+    └── ...
 ```
 
 Built-in profiles are re-synced from the package on every install (`postinstall` hook):
@@ -147,14 +172,18 @@ Profile format:
 }
 ```
 
-## Built-in Profiles
+## Development
 
-| Profile | Description |
-|---|---|
-| `sonnet` | Claude Sonnet |
-| `opus` | Claude Opus |
-| `glm` | Routes all model slots to `glm-5.1` via env vars |
+```bash
+git clone https://github.com/ciknight/cc-switch.git
+cd cc-switch
+npm ci
+npm test          # 101 tests
+```
+
+CI runs the full suite on Ubuntu, Windows, and macOS against Node 18 and 22 on every push and
+pull request: [Actions](https://github.com/ciknight/cc-switch/actions).
 
 ## License
 
-MIT
+[MIT](LICENSE) © ci_kn

@@ -1,7 +1,25 @@
 {
   "name": "cc-switch",
   "version": "1.0.0",
-  "description": "Claude Code model profile switcher",
+  "description": "Claude Code model profile switcher — switch, scope, or launch one-off sessions with different API endpoints and models",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ciknight/cc-switch.git"
+  },
+  "homepage": "https://github.com/ciknight/cc-switch#readme",
+  "bugs": {
+    "url": "https://github.com/ciknight/cc-switch/issues"
+  },
+  "keywords": [
+    "claude-code",
+    "cli",
+    "profile",
+    "switcher",
+    "anthropic",
+    "model",
+    "config"
+  ],
   "bin": {
     "cc-switch": "./bin/cli.js"
   },

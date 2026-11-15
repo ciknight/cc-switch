@@ -14,10 +14,10 @@ afterEach(() => {
 
 test('getBundledProfiles lists repo profiles without extension', () => {
   const names = getBundledProfiles();
-  expect(names).toContain('sonnet');
-  expect(names).toContain('opus');
-  expect(names).toContain('glm');
+  expect(names.length).toBeGreaterThan(0);
+  expect(new Set(names).size).toBe(names.length); // unique
   for (const name of names) {
+    expect(name).not.toMatch(/\.json$/);
     expect(fs.existsSync(path.join(BUNDLED_PROFILES_DIR, `${name}.json`))).toBe(true);
   }
 });
@@ -36,11 +36,12 @@ test('syncProfiles creates target dir and copies all bundled profiles + manifest
 });
 
 test('syncProfiles overwrites stale built-in profiles with bundled versions', () => {
+  const probe = getBundledProfiles()[0];
   fs.mkdirSync(path.join(tmpDir, 'profiles'), { recursive: true });
-  fs.writeFileSync(path.join(tmpDir, 'profiles', 'sonnet.json'), '{"outdated":true}', 'utf8');
+  fs.writeFileSync(path.join(tmpDir, 'profiles', `${probe}.json`), '{"outdated":true}', 'utf8');
   syncProfiles(tmpDir);
-  const synced = JSON.parse(fs.readFileSync(path.join(tmpDir, 'profiles', 'sonnet.json'), 'utf8'));
-  expect(synced).toEqual(JSON.parse(fs.readFileSync(path.join(BUNDLED_PROFILES_DIR, 'sonnet.json'), 'utf8')));
+  const synced = JSON.parse(fs.readFileSync(path.join(tmpDir, 'profiles', `${probe}.json`), 'utf8'));
+  expect(synced).toEqual(JSON.parse(fs.readFileSync(path.join(BUNDLED_PROFILES_DIR, `${probe}.json`), 'utf8')));
 });
 
 test('syncProfiles preserves custom profiles not in the manifest', () => {
@@ -52,12 +53,13 @@ test('syncProfiles preserves custom profiles not in the manifest', () => {
 });
 
 test('syncProfiles removes managed profiles that are no longer bundled', () => {
+  const kept = getBundledProfiles()[0];
   fs.mkdirSync(path.join(tmpDir, 'profiles'), { recursive: true });
   fs.writeFileSync(path.join(tmpDir, 'profiles', 'retired.json'), '{}', 'utf8');
-  fs.writeFileSync(path.join(tmpDir, 'profiles.manifest.json'), JSON.stringify(['retired', 'sonnet']), 'utf8');
+  fs.writeFileSync(path.join(tmpDir, 'profiles.manifest.json'), JSON.stringify(['retired', kept]), 'utf8');
   syncProfiles(tmpDir);
   expect(fs.existsSync(path.join(tmpDir, 'profiles', 'retired.json'))).toBe(false);
-  expect(fs.existsSync(path.join(tmpDir, 'profiles', 'sonnet.json'))).toBe(true);
+  expect(fs.existsSync(path.join(tmpDir, 'profiles', `${kept}.json`))).toBe(true);
 });
 
 test('syncProfiles heals a corrupt manifest and still syncs', () => {

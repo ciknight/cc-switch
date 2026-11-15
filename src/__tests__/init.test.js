@@ -27,20 +27,21 @@ test('setupConfig creates base.json with permissions and plugins', () => {
   expect(base.language).toBe('Chinese');
 });
 
-test('setupConfig copies all three preset profiles', () => {
+test('setupConfig copies all bundled preset profiles', () => {
   setupConfig('sk-test', 'https://api.test', tmpDir);
-  const profilesDir = path.join(tmpDir, 'profiles');
-  expect(fs.existsSync(path.join(profilesDir, 'sonnet.json'))).toBe(true);
-  expect(fs.existsSync(path.join(profilesDir, 'glm.json'))).toBe(true);
-  expect(fs.existsSync(path.join(profilesDir, 'opus.json'))).toBe(true);
+  const { getBundledProfiles } = require('../sync-profiles');
+  const bundled = getBundledProfiles();
+  expect(bundled.length).toBeGreaterThan(0);
+  for (const name of bundled) {
+    expect(fs.existsSync(path.join(tmpDir, 'profiles', `${name}.json`))).toBe(true);
+  }
 });
 
-test('setupConfig writes profiles.manifest.json listing built-in names', () => {
+test('setupConfig writes profiles.manifest.json matching bundled names', () => {
   setupConfig('sk-test', 'https://api.test', tmpDir);
+  const { getBundledProfiles } = require('../sync-profiles');
   const manifest = JSON.parse(fs.readFileSync(path.join(tmpDir, 'profiles.manifest.json'), 'utf8'));
-  expect(manifest).toContain('sonnet');
-  expect(manifest).toContain('glm');
-  expect(manifest).toContain('opus');
+  expect([...manifest].sort()).toEqual([...getBundledProfiles()].sort());
 });
 
 test('setupConfig sets private.json to mode 600 on unix', () => {
