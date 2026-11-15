@@ -33,11 +33,39 @@ base.json          # permissions、plugins、language —— 所有 profile 共�
 
 ## 安装
 
+要求 Node.js >= 18。
+
+### 从 npm 安装
+
 ```bash
 npm install -g cc-switch
 ```
 
-要求 Node.js >= 18。安装后初始化一次:
+### 从源码安装(本地安装,无需发布到 npm)
+
+```bash
+git clone https://github.com/ciknight/cc-switch.git
+cd cc-switch
+npm run setup        # Windows;一步到位:依赖 + 全局 `cc-switch` 命令 + init
+make install         # macOS / Linux,同上
+```
+
+手动方式:
+
+```bash
+npm install -g .     # 把当前代码作为全局包安装(快照式,改代码后需重装)
+npm link             # 开发模式:全局命令链接到本目录,改代码即时生效
+npm run teardown     # 移除全局命令(保留 ~/.cc-switch 配置)
+```
+
+离线机器安装:
+
+```bash
+npm pack                          # 生成 cc-switch-1.0.0.tgz
+npm install -g cc-switch-1.0.0.tgz
+```
+
+### 初始化一次
 
 ```bash
 cc-switch init

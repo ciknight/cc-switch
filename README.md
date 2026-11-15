@@ -33,11 +33,39 @@ Credentials never appear in templates, and every switch is a single command.
 
 ## Installation
 
+Requires Node.js >= 18.
+
+### From npm
+
 ```bash
 npm install -g cc-switch
 ```
 
-Requires Node.js >= 18. Then initialize once:
+### From source (local install — no npm publish needed)
+
+```bash
+git clone https://github.com/ciknight/cc-switch.git
+cd cc-switch
+npm run setup        # Windows; one shot: deps + global `cc-switch` + init
+make install         # macOS / Linux, same thing
+```
+
+Manual alternatives:
+
+```bash
+npm install -g .     # install this checkout as a global package (snapshot)
+npm link             # dev mode: global command links here, code changes apply live
+npm run teardown     # remove the global command (keeps ~/.cc-switch)
+```
+
+Install on an offline machine:
+
+```bash
+npm pack                          # produces cc-switch-1.0.0.tgz
+npm install -g cc-switch-1.0.0.tgz
+```
+
+### Initialize once
 
 ```bash
 cc-switch init
