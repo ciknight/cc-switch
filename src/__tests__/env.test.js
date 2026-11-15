@@ -115,6 +115,22 @@ describe('quoteCmdArg', () => {
     const { quoteCmdArg } = require('../commands/env');
     expect(quoteCmdArg('hello C:\\dir\\')).toBe('"hello C:\\dir\\\\"');
   });
+
+  test('quotes empty string arg', () => {
+    const { quoteCmdArg } = require('../commands/env');
+    expect(quoteCmdArg('')).toBe('""');
+  });
+
+  test('doubles backslashes immediately before an embedded quote', () => {
+    const { quoteCmdArg } = require('../commands/env');
+    expect(quoteCmdArg('a\\"b')).toBe('"a\\\\\\"b"');
+  });
+
+  test('leaves percent signs unquoted (quoting does not stop cmd expansion)', () => {
+    const { quoteCmdArg } = require('../commands/env');
+    expect(quoteCmdArg('100%')).toBe('100%');
+    expect(quoteCmdArg('%PATH%')).toBe('%PATH%');
+  });
 });
 
 describe('buildSpawnInvocation', () => {
@@ -330,5 +346,45 @@ describe('launch', () => {
     } finally {
       exitSpy.mockRestore();
     }
+  });
+
+  test('second SIGINT exits with 130 and cleans up', async () => {
+    const { launch } = require('../commands/env');
+    const fake = makeFakeSpawn();
+    const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => {});
+    try {
+      const p = launch('glm', [], { configDir: ccDir, claudeBin: 'claude', spawnFn: fake.spawnFn });
+      const settingsFile = settingsFileFrom(fake.calls[0]);
+      process.emit('SIGINT'); // first: child's turn to handle it
+      expect(fs.existsSync(settingsFile)).toBe(true);
+      expect(exitSpy).not.toHaveBeenCalled();
+      process.emit('SIGINT'); // second: forced exit
+      expect(exitSpy).toHaveBeenCalledWith(130);
+      expect(fs.existsSync(settingsFile)).toBe(false);
+      fake.children[0].emit('close', 0);
+      await p;
+    } finally {
+      exitSpy.mockRestore();
+    }
+  });
+
+  test('signal-killed child (code null) resolves exit code 1', async () => {
+    const { launch } = require('../commands/env');
+    const fake = makeFakeSpawn();
+    const p = launch('glm', [], { configDir: ccDir, claudeBin: 'claude', spawnFn: fake.spawnFn });
+    fake.children[0].emit('close', null, 'SIGTERM');
+    await expect(p).resolves.toBe(1);
+  });
+
+  test('creates temp file with 0600 mode on unix', async () => {
+    const { launch } = require('../commands/env');
+    const fake = makeFakeSpawn();
+    const p = launch('glm', [], { configDir: ccDir, claudeBin: 'claude', spawnFn: fake.spawnFn });
+    const settingsFile = settingsFileFrom(fake.calls[0]);
+    if (process.platform !== 'win32') {
+      expect(fs.statSync(settingsFile).mode & 0o777).toBe(0o600);
+    }
+    fake.children[0].emit('close', 0);
+    await p;
   });
 });

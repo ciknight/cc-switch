@@ -4,7 +4,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { spawn, spawnSync } = require('child_process');
-const { readJson } = require('../config');
+const { readJson, listProfiles } = require('../config');
 const { buildSettings } = require('../merge');
 const { getCCSwitchDir } = require('../paths');
 
@@ -49,9 +49,12 @@ function resolveClaudeBin({ env = process.env, platform = process.platform, spaw
 }
 
 function quoteCmdArg(arg) {
-  if (!/[\s"&|<>^()%]/.test(arg)) return arg;
-  let quoted = arg.replace(/"/g, '\\"');
-  if (/\\$/.test(quoted)) quoted += '\\';
+  if (arg === '') return '""';
+  // % is excluded: quoting does not stop cmd.exe variable expansion, so quoting
+  // a %-containing arg changes nothing but the literal form.
+  if (!/[\s"&|<>()^]/.test(arg)) return arg;
+  // MSVCRT rules: double backslashes before a quote, escape the quote, double trailing backslashes.
+  let quoted = arg.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1');
   return `"${quoted}"`;
 }
 
@@ -64,10 +67,11 @@ function buildSpawnInvocation(claudeBin, settingsFile, userArgs, platform = proc
   return { command: process.env.ComSpec || 'cmd.exe', args: ['/d', '/s', '/c', cmdLine] };
 }
 
-function listProfileNames(configDir) {
-  const dir = path.join(configDir, 'profiles');
-  if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir).filter(f => f.endsWith('.json')).map(f => f.replace(/\.json$/, ''));
+function assertProfileExists(configDir, profileName) {
+  if (!fs.existsSync(profilePathOf(configDir, profileName))) {
+    throw new Error(
+      `profile "${profileName}" not found. Available profiles: ${listProfiles(path.join(configDir, 'profiles')).join(', ') || '(none)'}`);
+  }
 }
 
 async function launch(profileName, userArgs, opts = {}) {
@@ -75,10 +79,7 @@ async function launch(profileName, userArgs, opts = {}) {
   const spawnFn = opts.spawnFn || spawn;
   const resolveBin = opts.resolveBin || resolveClaudeBin;
   assertInitFiles(configDir);
-  if (!fs.existsSync(profilePathOf(configDir, profileName))) {
-    throw new Error(
-      `profile "${profileName}" not found. Available profiles: ${listProfileNames(configDir).join(', ') || '(none)'}`);
-  }
+  assertProfileExists(configDir, profileName);
   const settings = buildEnvSettings(configDir, profileName);
   // Resolve the binary and build the invocation BEFORE writing the token-bearing
   // temp file: if resolution fails there is nothing to leak.
@@ -86,13 +87,19 @@ async function launch(profileName, userArgs, opts = {}) {
   const settingsFile = path.join(os.tmpdir(), `cc-switch-env-${process.pid}-${crypto.randomUUID().slice(0, 8)}.json`);
   const cleanup = () => { try { fs.unlinkSync(settingsFile); } catch (_) { /* already gone */ } };
   try {
-    fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2) + '\n', 'utf8');
-    if (process.platform !== 'win32') fs.chmodSync(settingsFile, 0o600);
+    fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 });
+    if (process.platform !== 'win32') fs.chmodSync(settingsFile, 0o600); // belt for exotic umasks
     const modelSuffix = settings.model ? `, model: ${settings.model}` : '';
     console.error(`[cc-switch] session profile "${profileName}"${modelSuffix}`);
     const { command, args } = buildSpawnInvocation(claudeBin, settingsFile, userArgs);
     return await new Promise((resolve, reject) => {
-      const onSignal = () => { /* let the child handle the signal; cleanup runs on close */ };
+      // First Ctrl+C belongs to the child (it shares the console). A second one
+      // means the user wants out regardless: clean up and exit.
+      let interrupted = false;
+      const onSignal = () => {
+        if (interrupted) { detach(); cleanup(); process.exit(130); }
+        interrupted = true;
+      };
       process.on('SIGINT', onSignal);
       process.on('SIGTERM', onSignal);
       process.on('exit', cleanup);
@@ -102,7 +109,7 @@ async function launch(profileName, userArgs, opts = {}) {
         process.off('exit', cleanup);
       };
       const child = spawnFn(command, args, { stdio: 'inherit' });
-      child.on('close', (code) => { detach(); cleanup(); resolve(code); });
+      child.on('close', (code) => { detach(); cleanup(); resolve(code == null ? 1 : code); });
       child.on('error', (err) => {
         detach(); cleanup();
         if (err && err.code === 'ENOENT') {
@@ -123,10 +130,7 @@ function run(profileName, userArgs, options = {}) {
   if (options.print) {
     try {
       assertInitFiles(configDir);
-      if (!fs.existsSync(profilePathOf(configDir, profileName))) {
-        throw new Error(
-          `profile "${profileName}" not found. Available profiles: ${listProfileNames(configDir).join(', ') || '(none)'}`);
-      }
+      assertProfileExists(configDir, profileName);
       console.log(JSON.stringify(buildEnvSettings(configDir, profileName), null, 2));
       return Promise.resolve();
     } catch (err) {

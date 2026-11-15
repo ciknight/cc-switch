@@ -28,8 +28,7 @@ function readManifest() {
   return readJson(p);
 }
 
-function listProfiles() {
-  const dir = getProfilesDir();
+function listProfiles(dir = getProfilesDir()) {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir)
     .filter(f => f.endsWith('.json'))
