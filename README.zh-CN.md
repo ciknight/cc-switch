@@ -131,7 +131,7 @@ cc-switch init-claude ../app      # 或指定其他目录
 |---|---|
 | `--force` | 覆盖已有 `CLAUDE.md`(先备份为 `CLAUDE.md.bak`;若已存在则用带时间戳的 `.bak.*`) |
 | `--no-launch` | 只写骨架和 docs 目录,不启动 claude |
-| `--template <path>` | 使用自定义 `CLAUDE.md` 模板 |
+| `--template <path>` | 使用自定义 `CLAUDE.md` 模板(保留其自身章节结构) |
 
 ## 工作原理
 
@@ -212,7 +212,7 @@ profile 格式:
 git clone https://github.com/ciknight/cc-switch.git
 cd cc-switch
 npm ci
-npm test          # 101 个测试
+npm test          # 129 个测试
 ```
 
 CI 在 Ubuntu、Windows、macOS 上以 Node 18 和 22 跑全部测试,覆盖每次 push 和 pull request:[Actions](https://github.com/ciknight/cc-switch/actions)。

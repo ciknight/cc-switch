@@ -19,7 +19,7 @@ program
   .description('Initialize a project CLAUDE.md from a template via an interactive claude session')
   .option('--force', 'Overwrite an existing CLAUDE.md (backup to CLAUDE.md.bak, timestamped if it exists)')
   .option('--no-launch', 'Only write the CLAUDE.md skeleton and docs directories; do not start claude')
-  .option('--template <path>', 'Use a custom CLAUDE.md template')
+  .option('--template <path>', 'Use a custom CLAUDE.md template (its section structure is kept)')
   .action((dir, options) => require('../src/commands/init-claude').run(dir, options));
 
 program

@@ -22,6 +22,8 @@ describe('bundled init-claude assets', () => {
     for (const keyword of ['这个项目是做什么的', 'DDD', 'RESTful', 'MCP', 'docs/spec', 'GitHub Flow', '第三方', 'CLAUDE.md', 'AskUserQuestion']) {
       expect(text).toContain(keyword);
     }
+    expect(text).toContain('现有的章节和顺序');
+    expect(text).not.toContain('保留骨架的 9 个章节');
   });
 });
 
@@ -54,6 +56,19 @@ describe('init-claude preparation helpers', () => {
     const filePath = path.join(tmpDir, 'file.txt');
     fs.writeFileSync(filePath, '');
     expect(() => assertProjectDir(filePath)).toThrow('not a directory');
+  });
+
+  test('assertProjectDir distinguishes permission errors', () => {
+    const spy = jest.spyOn(fs, 'statSync').mockImplementationOnce(() => {
+      const err = new Error('permission denied');
+      err.code = 'EACCES';
+      throw err;
+    });
+    try {
+      expect(() => assertProjectDir(path.join(tmpDir, 'blocked'))).toThrow('cannot access project directory');
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   test('renderTemplate replaces known placeholders and preserves unknown ones', () => {
@@ -247,6 +262,18 @@ describe('init-claude launch', () => {
     expect(fs.existsSync(promptPath)).toBe(false);
   });
 
+  test('launch rejects a missing absolute claude path on Windows', async () => {
+    const missing = path.join(tmpDir, 'nope', 'claude.cmd');
+    const promptPath = path.join(tmpDir, PROMPT_RELATIVE_PATH);
+    await expect(launch({
+      projectDir: tmpDir,
+      spawnFn: jest.fn(),
+      resolveBin: () => missing,
+      platform: 'win32',
+    })).rejects.toThrow(`claude not found at "${missing}"`);
+    expect(fs.existsSync(promptPath)).toBe(false);
+  });
+
   test('launch removes the prompt when spawn fails', async () => {
     const promptPath = path.join(tmpDir, PROMPT_RELATIVE_PATH);
     const spawnFn = jest.fn(() => {
@@ -262,6 +289,20 @@ describe('init-claude launch', () => {
       platform: 'linux',
     })).rejects.toThrow('claude not found at');
     expect(fs.existsSync(promptPath)).toBe(false);
+  });
+
+  test('launch refuses to overwrite an existing prompt file', async () => {
+    const promptPath = path.join(tmpDir, PROMPT_RELATIVE_PATH);
+    fs.mkdirSync(path.dirname(promptPath), { recursive: true });
+    fs.writeFileSync(promptPath, 'user content', 'utf8');
+
+    await expect(launch({
+      projectDir: tmpDir,
+      spawnFn: jest.fn(),
+      resolveBin: () => 'claude',
+      platform: 'linux',
+    })).rejects.toThrow('already exists');
+    expect(fs.readFileSync(promptPath, 'utf8')).toBe('user content');
   });
 });
 
@@ -290,6 +331,17 @@ describe('init-claude run', () => {
     expect(fs.existsSync(path.join(tmpDir, 'docs', 'spec', '.gitkeep'))).toBe(true);
   });
 
+  test('run --no-launch prints the follow-up --force command', async () => {
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await run(tmpDir, { launch: false, setExitCode: jest.fn() });
+      const output = logSpy.mock.calls.map((args) => args.join(' ')).join('\n');
+      expect(output).toContain('--force');
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
   test('run reports an existing CLAUDE.md without force and leaves it intact', async () => {
     fs.writeFileSync(path.join(tmpDir, 'CLAUDE.md'), 'old');
     const setExitCode = jest.fn();
@@ -298,5 +350,26 @@ describe('init-claude run', () => {
 
     expect(setExitCode).toHaveBeenCalledWith(1);
     expect(fs.readFileSync(path.join(tmpDir, 'CLAUDE.md'), 'utf8')).toBe('old');
+  });
+
+  test('run reports a missing template path', async () => {
+    const setExitCode = jest.fn();
+
+    await run(tmpDir, { launch: false, template: path.join(tmpDir, 'nope.md'), setExitCode });
+
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  test('run propagates a non-zero claude exit code', async () => {
+    const spawnFn = jest.fn(() => {
+      const child = new EventEmitter();
+      process.nextTick(() => child.emit('close', 3));
+      return child;
+    });
+    const setExitCode = jest.fn();
+
+    await run(tmpDir, { spawnFn, resolveBin: () => 'claude', setExitCode });
+
+    expect(setExitCode).toHaveBeenCalledWith(3);
   });
 });

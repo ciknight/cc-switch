@@ -10,24 +10,26 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-18-init-claude-design.md`
 
+> **Post-implementation amendments (2026-11-18):** After the final review, the implementation added: `windowsVerbatimArguments` for Windows, timestamped backups when `.bak` exists, exclusive creation of the temp prompt, atomic `CLAUDE.md` writes, a missing-absolute-claude check, EACCES-aware directory errors, a `--force` follow-up hint, and run-level tests. The focused `init-claude` suite is now 28 tests (129 total). The per-task `Expected: PASS, N tests` counts below describe the original execution, not the final suite.
+
 ## Global Constraints
 
 - Node.js >= 18; CommonJS (`'use strict'`, `require`); commander v12; Jest 29.
 - No new runtime or dev dependencies.
 - Must work on Windows, macOS, and Linux; Windows may resolve `claude.cmd` and must go through `cmd.exe`.
-- User-facing output and generated files are Chinese; code identifiers remain English.
+- Generated files and the initial message are Chinese; CLI status/error messages follow the existing English style; code identifiers remain English.
 - Do not modify the behavior of `init`, `use`, `local`, `env`, `list`, `status`, `add`, `edit`, or `remove`.
 - Bundled assets live under `src/templates/claude-md/`; `package.json` already ships `src/`.
 - Generated `CLAUDE.md` is the highest constraint document, key information only; details are referenced from `docs/`.
 - Defaults written into the template: DDD, RESTful APIs, MCP for AI/tool integration, GitHub Flow.
-- `--force` backs up an existing `CLAUDE.md` to `CLAUDE.md.bak` before overwriting.
+- `--force` backs up an existing `CLAUDE.md` to `CLAUDE.md.bak` (or `CLAUDE.md.bak.YYYYMMDD-HHmmss` when `.bak` already exists) before overwriting.
 - The temporary prompt `.claude/cc-switch-init-claude.md` is deleted when claude exits or fails.
 - `--no-launch` must never resolve, spawn, or require `claude`.
 
 ## Review Focus
 
 1. **Windows `.cmd` shim + Chinese initial message** — the message must survive `cmd.exe /c`, and the command line must include `chcp 65001>nul &`; a wrong quoting path silently drops or garbles the message. Pinned by the `buildClaudeInvocation` Windows test in Task 3.
-2. **Existing `CLAUDE.md` safety** — without `--force` the file must be untouched; with `--force` the old content must be preserved in `CLAUDE.md.bak`. Pinned by the `prepareTarget` tests in Task 2.
+2. **Existing `CLAUDE.md` safety** — without `--force` the file must be untouched; with `--force` the old content must be preserved in `CLAUDE.md.bak` (or a timestamped `.bak.*` when `.bak` already exists). Pinned by the `prepareTarget` tests in Task 2.
 3. **claude missing or spawn failure** — the command must fail cleanly and leave no prompt file behind. Pinned by the `launch` rejection tests in Task 3.
 4. **`--no-launch` on a machine without claude** — the command must complete using only the filesystem. Pinned by the `run` test in Task 4.
 5. **Project path containing spaces or Unicode** — `cwd` and template reads must work; the initial message stays relative, so no path needs cmd quoting. Pinned by a spaces-in-path `launch` test in Task 3.
@@ -413,6 +415,14 @@ function scaffoldDocs(projectDir) {
   }
 }
 
+function backupStamp(date) {
+  const ymd = formatDate(date).replace(/-/g, '');
+  const hms = [date.getHours(), date.getMinutes(), date.getSeconds()]
+    .map((value) => String(value).padStart(2, '0'))
+    .join('');
+  return `${ymd}-${hms}`;
+}
+
 function prepareTarget({ projectDir, force = false, templatePath = BUNDLED_TEMPLATE, now = new Date() }) {
   if (!fs.existsSync(templatePath)) throw new Error(`template not found: ${templatePath}`);
   const claudeMdPath = path.join(projectDir, 'CLAUDE.md');
@@ -422,6 +432,15 @@ function prepareTarget({ projectDir, force = false, templatePath = BUNDLED_TEMPL
       throw new Error('CLAUDE.md already exists. Re-run with --force to overwrite (a backup will be created).');
     }
     backupPath = path.join(projectDir, 'CLAUDE.md.bak');
+    if (fs.existsSync(backupPath)) {
+      const base = `CLAUDE.md.bak.${backupStamp(now)}`;
+      backupPath = path.join(projectDir, base);
+      let suffix = 1;
+      while (fs.existsSync(backupPath)) {
+        backupPath = path.join(projectDir, `${base}-${suffix}`);
+        suffix += 1;
+      }
+    }
     fs.copyFileSync(claudeMdPath, backupPath);
   }
   const template = fs.readFileSync(templatePath, 'utf8');
@@ -429,7 +448,14 @@ function prepareTarget({ projectDir, force = false, templatePath = BUNDLED_TEMPL
     PROJECT_NAME: path.basename(projectDir),
     DATE: formatDate(now),
   });
-  fs.writeFileSync(claudeMdPath, rendered, 'utf8');
+  const tmpPath = `${claudeMdPath}.tmp-${process.pid}-${Date.now()}`;
+  try {
+    fs.writeFileSync(tmpPath, rendered, 'utf8');
+    fs.renameSync(tmpPath, claudeMdPath);
+  } catch (err) {
+    try { fs.unlinkSync(tmpPath); } catch (_) { /* already gone */ }
+    throw err;
+  }
   return { claudeMdPath, backupPath };
 }
 ```
@@ -753,9 +779,9 @@ Insert after the existing `init` command:
 program
   .command('init-claude [dir]')
   .description('Initialize a project CLAUDE.md from a template via an interactive claude session')
-  .option('--force', 'Overwrite an existing CLAUDE.md (backs it up to CLAUDE.md.bak)')
+  .option('--force', 'Overwrite an existing CLAUDE.md (backup to CLAUDE.md.bak, timestamped if it exists)')
   .option('--no-launch', 'Only write the CLAUDE.md skeleton and docs directories; do not start claude')
-  .option('--template <path>', 'Use a custom CLAUDE.md template')
+  .option('--template <path>', 'Use a custom CLAUDE.md template (its section structure is kept)')
   .action((dir, options) => require('../src/commands/init-claude').run(dir, options));
 ```
 
@@ -814,9 +840,9 @@ top-level constraint document; details live in `docs/` and are referenced by pat
 
 | Option | Description |
 |---|---|
-| `--force` | Overwrite an existing `CLAUDE.md` (backs it up to `CLAUDE.md.bak`) |
+| `--force` | Overwrite an existing `CLAUDE.md` (backs it up to `CLAUDE.md.bak`, or a timestamped `.bak.*` if that exists) |
 | `--no-launch` | Write the skeleton and docs directories only; do not start claude |
-| `--template <path>` | Use a custom `CLAUDE.md` template |
+| `--template <path>` | Use a custom `CLAUDE.md` template (its own section structure is kept) |
 ```
 
 - [ ] **Step 8: Update `README.zh-CN.md`**
@@ -843,9 +869,9 @@ cc-switch init-claude ../app      # 或指定其他目录
 
 | 选项 | 说明 |
 |---|---|
-| `--force` | 覆盖已有 `CLAUDE.md`(先备份为 `CLAUDE.md.bak`) |
+| `--force` | 覆盖已有 `CLAUDE.md`(先备份为 `CLAUDE.md.bak`;若已存在则用带时间戳的 `.bak.*`) |
 | `--no-launch` | 只写骨架和 docs 目录,不启动 claude |
-| `--template <path>` | 使用自定义 `CLAUDE.md` 模板 |
+| `--template <path>` | 使用自定义 `CLAUDE.md` 模板(保留其自身章节结构) |
 ```
 
 - [ ] **Step 9: Commit**
@@ -862,5 +888,5 @@ git commit -m "feat: wire cc-switch init-claude command and document it"
 - [ ] Run `npm test` and confirm every suite passes.
 - [ ] Run `node bin/cli.js init-claude --help` and confirm the four options are listed.
 - [ ] In a throwaway directory, run `node bin/cli.js init-claude <dir> --no-launch`, confirm `CLAUDE.md` and `docs/{spec,plan,guide,reference}/.gitkeep` exist, then run it again and confirm it refuses without `--force`.
-- [ ] Run it a third time with `--force` and confirm `CLAUDE.md.bak` contains the previous content.
+- [ ] Run it a third time with `--force` and confirm the previous content is preserved in `CLAUDE.md.bak` or `CLAUDE.md.bak.YYYYMMDD-HHmmss`.
 - [ ] Confirm `git status` shows only the intended files.

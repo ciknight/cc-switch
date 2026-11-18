@@ -26,8 +26,11 @@ function assertProjectDir(projectDir) {
   let stat;
   try {
     stat = fs.statSync(projectDir);
-  } catch (_) {
-    throw new Error(`project directory not found: ${projectDir}`);
+  } catch (err) {
+    if (err && err.code === 'ENOENT') {
+      throw new Error(`project directory not found: ${projectDir}`);
+    }
+    throw new Error(`cannot access project directory ${projectDir}: ${err.code || err.message}`);
   }
   if (!stat.isDirectory()) throw new Error(`not a directory: ${projectDir}`);
 }
@@ -74,7 +77,14 @@ function prepareTarget({ projectDir, force = false, templatePath = BUNDLED_TEMPL
     PROJECT_NAME: path.basename(projectDir),
     DATE: formatDate(now),
   });
-  fs.writeFileSync(claudeMdPath, rendered, 'utf8');
+  const tmpPath = `${claudeMdPath}.tmp-${process.pid}-${Date.now()}`;
+  try {
+    fs.writeFileSync(tmpPath, rendered, 'utf8');
+    fs.renameSync(tmpPath, claudeMdPath);
+  } catch (err) {
+    try { fs.unlinkSync(tmpPath); } catch (_) { /* already gone */ }
+    throw err;
+  }
   return { claudeMdPath, backupPath };
 }
 
@@ -96,6 +106,9 @@ async function launch({
 } = {}) {
   assertProjectDir(projectDir);
   const claudeBin = resolveBin();
+  if (platform === 'win32' && path.isAbsolute(claudeBin) && !fs.existsSync(claudeBin)) {
+    throw new Error(`claude not found at "${claudeBin}". Check PATH or set CC_SWITCH_CLAUDE.`);
+  }
   const promptPath = path.join(projectDir, PROMPT_RELATIVE_PATH);
   const promptTemplate = fs.readFileSync(promptTemplatePath, 'utf8');
   const prompt = renderTemplate(promptTemplate, {
@@ -105,10 +118,13 @@ async function launch({
   const { command, args } = buildClaudeInvocation(claudeBin, [initialMessage], platform, comspec);
   const cleanup = () => { try { fs.unlinkSync(promptPath); } catch (_) { /* already gone */ } };
 
+  fs.mkdirSync(path.dirname(promptPath), { recursive: true });
   try {
-    fs.mkdirSync(path.dirname(promptPath), { recursive: true });
-    fs.writeFileSync(promptPath, prompt, 'utf8');
+    fs.writeFileSync(promptPath, prompt, { encoding: 'utf8', flag: 'wx' });
   } catch (err) {
+    if (err && err.code === 'EEXIST') {
+      throw new Error(`temporary prompt already exists: ${promptPath}. Remove it and retry.`);
+    }
     cleanup();
     throw err;
   }
@@ -174,7 +190,7 @@ async function run(dir, options = {}) {
     console.log(`CLAUDE.md skeleton written to ${claudeMdPath}`);
 
     if (options.launch === false) {
-      console.log('Skipped launching claude (--no-launch). Run `claude` in the project and ask it to complete CLAUDE.md.');
+      console.log(`Skipped launching claude (--no-launch). To run the interview later: cc-switch init-claude "${projectDir}" --force`);
       return;
     }
 

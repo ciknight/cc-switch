@@ -132,7 +132,7 @@ top-level constraint document; details live in `docs/` and are referenced by pat
 |---|---|
 | `--force` | Overwrite an existing `CLAUDE.md` (backs it up to `CLAUDE.md.bak`, or a timestamped `.bak.*` if that exists) |
 | `--no-launch` | Write the skeleton and docs directories only; do not start claude |
-| `--template <path>` | Use a custom `CLAUDE.md` template |
+| `--template <path>` | Use a custom `CLAUDE.md` template (its own section structure is kept) |
 
 ## How It Works
 
@@ -225,7 +225,7 @@ Profile format:
 git clone https://github.com/ciknight/cc-switch.git
 cd cc-switch
 npm ci
-npm test          # 101 tests
+npm test          # 129 tests
 ```
 
 CI runs the full suite on Ubuntu, Windows, and macOS against Node 18 and 22 on every push and

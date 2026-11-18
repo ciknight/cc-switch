@@ -46,7 +46,7 @@
 
 ```text
 cc-switch init-claude [dir]        # 默认当前目录
-  --force                          # 覆盖已有 CLAUDE.md，先备份为 CLAUDE.md.bak
+  --force                          # 覆盖已有 CLAUDE.md，先备份为 CLAUDE.md.bak（若已存在则用时间戳名）
   --no-launch                      # 只生成骨架和 docs 目录，不启动 claude
   --template <path>                # 使用自定义 CLAUDE.md 骨架
 ```
@@ -147,6 +147,8 @@ cc-switch 把该文件复制为项目内临时文件后启动 claude。提示词
 - 子进程 `close` / `error` 时删除临时提示词。
 - `process.on('exit')` 兜底删除。
 - 第二次 `SIGINT` / `SIGTERM` 时强制清理并 exit 130；第一次交给前台 claude。
+- 临时提示词用独占方式创建（`flag: 'wx'`）；同名文件已存在时报错，不覆盖用户文件。
+- `CLAUDE.md` 先写临时文件再 `rename`，避免写入中断留下截断文件。
 
 ## 错误处理
 
@@ -156,6 +158,7 @@ cc-switch 把该文件复制为项目内临时文件后启动 claude。提示词
 | `CLAUDE.md` 已存在且无 `--force` | 报错并提示 `--force`，exit 1 |
 | `--template` 文件不存在 | 报错，exit 1 |
 | 写文件/建目录失败 | 报错含路径，exit 1 |
+| 同名临时提示词已存在 | 报错，不覆盖用户文件，exit 1 |
 | claude 未找到 | 同 `env`：提示检查 PATH 或设置 `CC_SWITCH_CLAUDE` |
 | spawn 失败 | 删除临时提示词，报错，exit 1 |
 | claude 非零退出 | 清理后透传退出码 |
@@ -166,12 +169,13 @@ cc-switch 把该文件复制为项目内临时文件后启动 claude。提示词
 
 - `renderTemplate`：替换 `{{PROJECT_NAME}}` / `{{DATE}}`，不残留 `{{`。
 - `scaffoldDocs`：创建四个目录和 `.gitkeep`；重复执行幂等。
-- `prepareTarget`：无 `CLAUDE.md` 时写入骨架；已存在且无 `--force` 时抛错；`--force` 时生成 `.bak` 后覆盖。
+- `prepareTarget`：无 `CLAUDE.md` 时写入骨架；已存在且无 `--force` 时抛错；`--force` 时生成 `.bak`（若已存在则用时间戳名）后覆盖；写入走临时文件 + rename。
 - 模板内容：包含 9 个章节；"项目信息"是第一个二级标题；包含 DDD、REST、MCP、`docs/spec`、第三方边界、Git workflow 关键词。
 - 访谈提示词：包含项目定位、语言/框架、DDD、REST、MCP、docs 路径、Git workflow 等必问项。
 - `buildClaudeInvocation`：POSIX 返回 `command/args`；Windows 经 `cmd.exe` 且带空格参数被正确引号包裹。
 - `launch`：mock `spawn`，断言 cwd、stdio、中文初始消息；`close` 后临时提示词被删除；返回 claude 退出码。
-- `run`：`--no-launch` 不调用 spawn；`--template` 缺失时报错。
+- `run`：`--no-launch` 不调用 spawn；`--template` 缺失时报错；非零 claude 退出码经 `setExitCode` 透传。
+- 边界：Windows 绝对路径不存在、同名提示词已存在、EACCES、`--no-launch` 后续 `--force` 提示。
 
 ## 影响范围
 
