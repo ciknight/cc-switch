@@ -99,3 +99,117 @@ describe('init-claude preparation helpers', () => {
       .toThrow('template not found');
   });
 });
+
+const { EventEmitter } = require('events');
+const {
+  buildClaudeInvocation,
+  launch,
+  INITIAL_MESSAGE,
+  PROMPT_RELATIVE_PATH,
+} = require('../commands/init-claude');
+
+function fakeSpawn(onSpawn) {
+  return jest.fn((command, args, options) => {
+    const child = new EventEmitter();
+    if (onSpawn) onSpawn({ command, args, options, child });
+    process.nextTick(() => child.emit('close', 0));
+    return child;
+  });
+}
+
+describe('init-claude launch', () => {
+  let tmpDir;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-switch-init-claude-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test('INITIAL_MESSAGE is the Chinese prompt-file instruction', () => {
+    expect(INITIAL_MESSAGE).toBe('请读取 .claude/cc-switch-init-claude.md 并按其说明执行。');
+  });
+
+  test('buildClaudeInvocation on POSIX passes the binary and args through', () => {
+    expect(buildClaudeInvocation('claude', ['你好'], 'linux')).toEqual({
+      command: 'claude',
+      args: ['你好'],
+    });
+  });
+
+  test('buildClaudeInvocation on Windows uses cmd, chcp 65001, and quotes the message', () => {
+    const invocation = buildClaudeInvocation('C:\\npm\\claude.cmd', ['请读取 文件'], 'win32', 'cmd.exe');
+    expect(invocation.command).toBe('cmd.exe');
+    expect(invocation.args.slice(0, 3)).toEqual(['/d', '/s', '/c']);
+    expect(invocation.args[3]).toContain('chcp 65001>nul');
+    expect(invocation.args[3]).toContain('C:\\npm\\claude.cmd');
+    expect(invocation.args[3]).toContain('"请读取 文件"');
+  });
+
+  test('launch writes a prompt, spawns claude in the project directory, and cleans up', async () => {
+    const promptPath = path.join(tmpDir, PROMPT_RELATIVE_PATH);
+    let promptExistedAtSpawn = false;
+    const spawnFn = fakeSpawn(() => { promptExistedAtSpawn = fs.existsSync(promptPath); });
+
+    const code = await launch({
+      projectDir: tmpDir,
+      spawnFn,
+      resolveBin: () => 'claude',
+      platform: 'linux',
+      now: new Date(2026, 10, 18),
+    });
+
+    expect(code).toBe(0);
+    expect(promptExistedAtSpawn).toBe(true);
+    expect(spawnFn).toHaveBeenCalledTimes(1);
+    const [command, args, options] = spawnFn.mock.calls[0];
+    expect(command).toBe('claude');
+    expect(args).toEqual([INITIAL_MESSAGE]);
+    expect(options.cwd).toBe(tmpDir);
+    expect(options.stdio).toBe('inherit');
+    expect(fs.existsSync(promptPath)).toBe(false);
+  });
+
+  test('launch works when the project path contains spaces', async () => {
+    const spacedDir = path.join(tmpDir, 'my project');
+    fs.mkdirSync(spacedDir);
+    const spawnFn = fakeSpawn();
+    await expect(launch({
+      projectDir: spacedDir,
+      spawnFn,
+      resolveBin: () => 'claude',
+      platform: 'linux',
+    })).resolves.toBe(0);
+    expect(spawnFn.mock.calls[0][2].cwd).toBe(spacedDir);
+  });
+
+  test('launch does not write a prompt when claude cannot be resolved', async () => {
+    const promptPath = path.join(tmpDir, PROMPT_RELATIVE_PATH);
+    await expect(launch({
+      projectDir: tmpDir,
+      spawnFn: jest.fn(),
+      resolveBin: () => { throw new Error('claude not found'); },
+      platform: 'linux',
+    })).rejects.toThrow('claude not found');
+    expect(fs.existsSync(promptPath)).toBe(false);
+  });
+
+  test('launch removes the prompt when spawn fails', async () => {
+    const promptPath = path.join(tmpDir, PROMPT_RELATIVE_PATH);
+    const spawnFn = jest.fn(() => {
+      const child = new EventEmitter();
+      process.nextTick(() => child.emit('error', Object.assign(new Error('spawn ENOENT'), { code: 'ENOENT' })));
+      return child;
+    });
+
+    await expect(launch({
+      projectDir: tmpDir,
+      spawnFn,
+      resolveBin: () => 'claude',
+      platform: 'linux',
+    })).rejects.toThrow('claude not found at');
+    expect(fs.existsSync(promptPath)).toBe(false);
+  });
+});

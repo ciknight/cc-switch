@@ -1,6 +1,8 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
+const { quoteCmdArg, resolveClaudeBin } = require('./env');
 
 const BUNDLED_TEMPLATE = path.join(__dirname, '..', 'templates', 'claude-md', 'CLAUDE.template.md');
 const BUNDLED_PROMPT = path.join(__dirname, '..', 'templates', 'claude-md', 'init-prompt.md');
@@ -59,6 +61,81 @@ function prepareTarget({ projectDir, force = false, templatePath = BUNDLED_TEMPL
   return { claudeMdPath, backupPath };
 }
 
+function buildClaudeInvocation(claudeBin, args, platform = process.platform, comspec = process.env.ComSpec) {
+  if (platform !== 'win32') return { command: claudeBin, args };
+  const cmdLine = 'chcp 65001>nul & ' + [claudeBin, ...args].map(quoteCmdArg).join(' ');
+  return { command: comspec || 'cmd.exe', args: ['/d', '/s', '/c', cmdLine] };
+}
+
+async function launch({
+  projectDir,
+  spawnFn = spawn,
+  resolveBin = resolveClaudeBin,
+  platform = process.platform,
+  comspec = process.env.ComSpec,
+  initialMessage = INITIAL_MESSAGE,
+  promptTemplatePath = BUNDLED_PROMPT,
+  now = new Date(),
+} = {}) {
+  assertProjectDir(projectDir);
+  const claudeBin = resolveBin();
+  const promptPath = path.join(projectDir, PROMPT_RELATIVE_PATH);
+  const promptTemplate = fs.readFileSync(promptTemplatePath, 'utf8');
+  const prompt = renderTemplate(promptTemplate, {
+    PROJECT_NAME: path.basename(projectDir),
+    DATE: formatDate(now),
+  });
+  const { command, args } = buildClaudeInvocation(claudeBin, [initialMessage], platform, comspec);
+  const cleanup = () => { try { fs.unlinkSync(promptPath); } catch (_) { /* already gone */ } };
+
+  try {
+    fs.mkdirSync(path.dirname(promptPath), { recursive: true });
+    fs.writeFileSync(promptPath, prompt, 'utf8');
+  } catch (err) {
+    cleanup();
+    throw err;
+  }
+
+  return new Promise((resolve, reject) => {
+    // First Ctrl+C belongs to the child (it shares the console). A second one
+    // means the user wants out regardless: clean up and exit.
+    let interrupted = false;
+    const onSignal = () => {
+      if (interrupted) { detach(); cleanup(); process.exit(130); }
+      interrupted = true;
+    };
+    const detach = () => {
+      process.off('SIGINT', onSignal);
+      process.off('SIGTERM', onSignal);
+      process.off('exit', cleanup);
+    };
+    process.on('SIGINT', onSignal);
+    process.on('SIGTERM', onSignal);
+    process.on('exit', cleanup);
+
+    let child;
+    try {
+      child = spawnFn(command, args, { cwd: projectDir, stdio: 'inherit' });
+    } catch (err) {
+      detach();
+      cleanup();
+      reject(err);
+      return;
+    }
+
+    child.on('close', (code) => { detach(); cleanup(); resolve(code == null ? 1 : code); });
+    child.on('error', (err) => {
+      detach();
+      cleanup();
+      if (err && err.code === 'ENOENT') {
+        reject(new Error(`claude not found at "${command}". Check PATH or set CC_SWITCH_CLAUDE.`));
+      } else {
+        reject(err instanceof Error ? err : new Error(String(err)));
+      }
+    });
+  });
+}
+
 module.exports = {
   BUNDLED_TEMPLATE,
   BUNDLED_PROMPT,
@@ -70,4 +147,6 @@ module.exports = {
   assertProjectDir,
   scaffoldDocs,
   prepareTarget,
+  buildClaudeInvocation,
+  launch,
 };
