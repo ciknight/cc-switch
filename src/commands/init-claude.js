@@ -41,6 +41,14 @@ function scaffoldDocs(projectDir) {
   }
 }
 
+function backupStamp(date) {
+  const ymd = formatDate(date).replace(/-/g, '');
+  const hms = [date.getHours(), date.getMinutes(), date.getSeconds()]
+    .map((value) => String(value).padStart(2, '0'))
+    .join('');
+  return `${ymd}-${hms}`;
+}
+
 function prepareTarget({ projectDir, force = false, templatePath = BUNDLED_TEMPLATE, now = new Date() }) {
   if (!fs.existsSync(templatePath)) throw new Error(`template not found: ${templatePath}`);
   const claudeMdPath = path.join(projectDir, 'CLAUDE.md');
@@ -50,6 +58,15 @@ function prepareTarget({ projectDir, force = false, templatePath = BUNDLED_TEMPL
       throw new Error('CLAUDE.md already exists. Re-run with --force to overwrite (a backup will be created).');
     }
     backupPath = path.join(projectDir, 'CLAUDE.md.bak');
+    if (fs.existsSync(backupPath)) {
+      const base = `CLAUDE.md.bak.${backupStamp(now)}`;
+      backupPath = path.join(projectDir, base);
+      let suffix = 1;
+      while (fs.existsSync(backupPath)) {
+        backupPath = path.join(projectDir, `${base}-${suffix}`);
+        suffix += 1;
+      }
+    }
     fs.copyFileSync(claudeMdPath, backupPath);
   }
   const template = fs.readFileSync(templatePath, 'utf8');
@@ -115,7 +132,11 @@ async function launch({
 
     let child;
     try {
-      child = spawnFn(command, args, { cwd: projectDir, stdio: 'inherit' });
+      child = spawnFn(command, args, {
+        cwd: projectDir,
+        stdio: 'inherit',
+        windowsVerbatimArguments: platform === 'win32',
+      });
     } catch (err) {
       detach();
       cleanup();

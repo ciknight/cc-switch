@@ -53,7 +53,7 @@ cc-switch init-claude [dir]        # 默认当前目录
 
 - `dir` 不存在或不是目录 → 报错，exit 1。
 - `CLAUDE.md` 已存在且未给 `--force` → 报错并提示 `--force`，exit 1。
-- `--force` 覆盖前把原文件复制为 `CLAUDE.md.bak`（已存在则覆盖该 `.bak`）。
+- `--force` 覆盖前把原文件复制为 `CLAUDE.md.bak`；若该文件已存在，则改用带时间戳的 `CLAUDE.md.bak.YYYYMMDD-HHmmss`，绝不覆盖旧备份。
 - 启动 claude 时的工作目录固定为 `dir`，退出码透传。
 
 ## 产物

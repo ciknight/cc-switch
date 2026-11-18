@@ -129,7 +129,7 @@ cc-switch init-claude ../app      # 或指定其他目录
 
 | 选项 | 说明 |
 |---|---|
-| `--force` | 覆盖已有 `CLAUDE.md`(先备份为 `CLAUDE.md.bak`) |
+| `--force` | 覆盖已有 `CLAUDE.md`(先备份为 `CLAUDE.md.bak`;若已存在则用带时间戳的 `.bak.*`) |
 | `--no-launch` | 只写骨架和 docs 目录,不启动 claude |
 | `--template <path>` | 使用自定义 `CLAUDE.md` 模板 |
 

@@ -130,7 +130,7 @@ top-level constraint document; details live in `docs/` and are referenced by pat
 
 | Option | Description |
 |---|---|
-| `--force` | Overwrite an existing `CLAUDE.md` (backs it up to `CLAUDE.md.bak`) |
+| `--force` | Overwrite an existing `CLAUDE.md` (backs it up to `CLAUDE.md.bak`, or a timestamped `.bak.*` if that exists) |
 | `--no-launch` | Write the skeleton and docs directories only; do not start claude |
 | `--template <path>` | Use a custom `CLAUDE.md` template |
 

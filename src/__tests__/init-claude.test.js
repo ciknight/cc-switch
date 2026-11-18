@@ -94,6 +94,20 @@ describe('init-claude preparation helpers', () => {
     expect(fs.readFileSync(path.join(tmpDir, 'CLAUDE.md'), 'utf8')).toContain('项目信息');
   });
 
+  test('repeated force backups do not overwrite the original backup', () => {
+    fs.writeFileSync(path.join(tmpDir, 'CLAUDE.md'), 'first');
+    const now = new Date(2026, 10, 18, 14, 5, 6);
+    const first = prepareTarget({ projectDir: tmpDir, force: true, now });
+    expect(fs.readFileSync(first.backupPath, 'utf8')).toBe('first');
+
+    fs.writeFileSync(path.join(tmpDir, 'CLAUDE.md'), 'second');
+    const second = prepareTarget({ projectDir: tmpDir, force: true, now });
+
+    expect(fs.readFileSync(path.join(tmpDir, 'CLAUDE.md.bak'), 'utf8')).toBe('first');
+    expect(second.backupPath).toBe(path.join(tmpDir, 'CLAUDE.md.bak.20261118-140506'));
+    expect(fs.readFileSync(second.backupPath, 'utf8')).toBe('second');
+  });
+
   test('prepareTarget reports a missing custom template', () => {
     expect(() => prepareTarget({ projectDir: tmpDir, templatePath: path.join(tmpDir, 'nope.md') }))
       .toThrow('template not found');
@@ -146,6 +160,43 @@ describe('init-claude launch', () => {
     expect(invocation.args[3]).toContain('chcp 65001>nul');
     expect(invocation.args[3]).toContain('C:\\npm\\claude.cmd');
     expect(invocation.args[3]).toContain('"请读取 文件"');
+  });
+
+  test('launch passes pre-quoted Windows arguments verbatim', async () => {
+    const spawnFn = fakeSpawn();
+    await launch({
+      projectDir: tmpDir,
+      spawnFn,
+      resolveBin: () => 'claude',
+      platform: 'win32',
+    });
+    expect(spawnFn.mock.calls[0][2].windowsVerbatimArguments).toBe(true);
+  });
+
+  test('windows launch delivers the Chinese message as one argument', async () => {
+    if (process.platform !== 'win32') return;
+
+    const fakeDir = path.join(tmpDir, 'fake-claude');
+    fs.mkdirSync(fakeDir);
+    const argsFile = path.join(fakeDir, 'args.json');
+    fs.writeFileSync(path.join(fakeDir, 'fake.js'), [
+      "'use strict';",
+      "const fs = require('fs');",
+      "fs.writeFileSync(process.argv[2], JSON.stringify(process.argv.slice(3)), 'utf8');",
+    ].join('\n'), 'utf8');
+    const fakeCmd = path.join(fakeDir, 'claude.cmd');
+    fs.writeFileSync(fakeCmd, `@echo off\r\nnode "%~dp0fake.js" "${argsFile}" %*\r\n`, 'utf8');
+
+    const code = await launch({
+      projectDir: tmpDir,
+      spawnFn: require('child_process').spawn,
+      resolveBin: () => fakeCmd,
+      platform: 'win32',
+    });
+
+    expect(code).toBe(0);
+    const argv = JSON.parse(fs.readFileSync(argsFile, 'utf8'));
+    expect(argv).toEqual([INITIAL_MESSAGE]);
   });
 
   test('launch writes a prompt, spawns claude in the project directory, and cleans up', async () => {
