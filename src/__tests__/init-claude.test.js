@@ -213,3 +213,39 @@ describe('init-claude launch', () => {
     expect(fs.existsSync(promptPath)).toBe(false);
   });
 });
+
+const { run } = require('../commands/init-claude');
+
+describe('init-claude run', () => {
+  let tmpDir;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-switch-init-claude-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test('run with launch:false writes files and never spawns claude', async () => {
+    const spawnFn = jest.fn();
+    const setExitCode = jest.fn();
+
+    await run(tmpDir, { launch: false, spawnFn, setExitCode });
+
+    expect(spawnFn).not.toHaveBeenCalled();
+    expect(setExitCode).not.toHaveBeenCalled();
+    expect(fs.existsSync(path.join(tmpDir, 'CLAUDE.md'))).toBe(true);
+    expect(fs.existsSync(path.join(tmpDir, 'docs', 'spec', '.gitkeep'))).toBe(true);
+  });
+
+  test('run reports an existing CLAUDE.md without force and leaves it intact', async () => {
+    fs.writeFileSync(path.join(tmpDir, 'CLAUDE.md'), 'old');
+    const setExitCode = jest.fn();
+
+    await run(tmpDir, { launch: false, setExitCode });
+
+    expect(setExitCode).toHaveBeenCalledWith(1);
+    expect(fs.readFileSync(path.join(tmpDir, 'CLAUDE.md'), 'utf8')).toBe('old');
+  });
+});

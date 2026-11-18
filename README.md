@@ -102,6 +102,7 @@ cc-switch list
 | Command | Description |
 |---|---|
 | `cc-switch init` | Initialize: store AUTH_TOKEN and BASE_URL, copy preset profiles |
+| `cc-switch init-claude [dir]` | Scaffold a project `CLAUDE.md` + `docs/` directories, then run an interactive claude interview to fill it in |
 | `cc-switch use <profile>` | Activate a profile (global by default) |
 | `cc-switch use <profile> --local` | Activate for current project only (writes `./.claude/settings.local.json`, not committed to git) |
 | `cc-switch local <profile>` | Shortcut for `use <profile> --local` |
@@ -114,6 +115,24 @@ cc-switch list
 | `cc-switch edit --base` | Edit base config (permissions, plugins, language) |
 | `cc-switch edit --private` | Edit private.json (AUTH_TOKEN / BASE_URL) |
 | `cc-switch remove <profile>` | Delete a custom profile (built-in profiles are protected) |
+
+## Initializing a Project CLAUDE.md
+
+```bash
+cc-switch init-claude             # in the project root
+cc-switch init-claude ../app      # or point at another directory
+```
+
+The command writes a `CLAUDE.md` skeleton and creates `docs/spec`, `docs/plan`,
+`docs/guide`, and `docs/reference`, then starts an interactive Claude Code session
+that interviews you about the project and fills in the file. `CLAUDE.md` is the
+top-level constraint document; details live in `docs/` and are referenced by path.
+
+| Option | Description |
+|---|---|
+| `--force` | Overwrite an existing `CLAUDE.md` (backs it up to `CLAUDE.md.bak`) |
+| `--no-launch` | Write the skeleton and docs directories only; do not start claude |
+| `--template <path>` | Use a custom `CLAUDE.md` template |
 
 ## How It Works
 

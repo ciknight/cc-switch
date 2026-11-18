@@ -15,6 +15,14 @@ program
   .action(() => require('../src/commands/init').run());
 
 program
+  .command('init-claude [dir]')
+  .description('Initialize a project CLAUDE.md from a template via an interactive claude session')
+  .option('--force', 'Overwrite an existing CLAUDE.md (backs it up to CLAUDE.md.bak)')
+  .option('--no-launch', 'Only write the CLAUDE.md skeleton and docs directories; do not start claude')
+  .option('--template <path>', 'Use a custom CLAUDE.md template')
+  .action((dir, options) => require('../src/commands/init-claude').run(dir, options));
+
+program
   .command('use <profile>')
   .description('Activate a profile (writes ~/.claude/settings.json by default)')
   .option('--local', 'Write to ./.claude/settings.local.json (project-only, not committed)')

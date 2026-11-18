@@ -136,6 +136,39 @@ async function launch({
   });
 }
 
+async function run(dir, options = {}) {
+  const projectDir = path.resolve(dir || process.cwd());
+  const setExitCode = options.setExitCode || ((code) => { process.exitCode = code; });
+
+  try {
+    assertProjectDir(projectDir);
+    const { claudeMdPath, backupPath } = prepareTarget({
+      projectDir,
+      force: Boolean(options.force),
+      templatePath: options.template || BUNDLED_TEMPLATE,
+    });
+    scaffoldDocs(projectDir);
+
+    if (backupPath) console.log(`Backed up existing CLAUDE.md to ${backupPath}`);
+    console.log(`CLAUDE.md skeleton written to ${claudeMdPath}`);
+
+    if (options.launch === false) {
+      console.log('Skipped launching claude (--no-launch). Run `claude` in the project and ask it to complete CLAUDE.md.');
+      return;
+    }
+
+    const code = await launch({
+      projectDir,
+      spawnFn: options.spawnFn,
+      resolveBin: options.resolveBin,
+    });
+    if (code !== 0) setExitCode(code);
+  } catch (err) {
+    console.error(`Error: ${err.message}`);
+    setExitCode(1);
+  }
+}
+
 module.exports = {
   BUNDLED_TEMPLATE,
   BUNDLED_PROMPT,
@@ -149,4 +182,5 @@ module.exports = {
   prepareTarget,
   buildClaudeInvocation,
   launch,
+  run,
 };

@@ -102,6 +102,7 @@ cc-switch list
 | 命令 | 说明 |
 |---|---|
 | `cc-switch init` | 初始化:保存 AUTH_TOKEN 和 BASE_URL,复制预置 profile |
+| `cc-switch init-claude [dir]` | 初始化项目 `CLAUDE.md` 与 `docs/` 目录,并启动 claude 交互访谈补全内容 |
 | `cc-switch use <profile>` | 激活 profile(默认全局) |
 | `cc-switch use <profile> --local` | 仅当前项目生效(写入 `./.claude/settings.local.json`,不进 git) |
 | `cc-switch local <profile>` | `use <profile> --local` 的快捷方式 |
@@ -114,6 +115,23 @@ cc-switch list
 | `cc-switch edit --base` | 编辑基础配置(permissions、plugins、language) |
 | `cc-switch edit --private` | 编辑 private.json(AUTH_TOKEN / BASE_URL) |
 | `cc-switch remove <profile>` | 删除自定义 profile(预置 profile 受保护) |
+
+## 初始化项目 CLAUDE.md
+
+```bash
+cc-switch init-claude             # 在项目根目录执行
+cc-switch init-claude ../app      # 或指定其他目录
+```
+
+命令会写入 `CLAUDE.md` 骨架,创建 `docs/spec`、`docs/plan`、`docs/guide`、`docs/reference`,
+然后启动交互式 Claude Code 会话,按模板询问项目定位、技术栈、架构、API、模块结构、
+文档约定与工作流,并补全 `CLAUDE.md`。`CLAUDE.md` 只保留关键约束,细节放在 `docs/` 中按路径引用。
+
+| 选项 | 说明 |
+|---|---|
+| `--force` | 覆盖已有 `CLAUDE.md`(先备份为 `CLAUDE.md.bak`) |
+| `--no-launch` | 只写骨架和 docs 目录,不启动 claude |
+| `--template <path>` | 使用自定义 `CLAUDE.md` 模板 |
 
 ## 工作原理
 
